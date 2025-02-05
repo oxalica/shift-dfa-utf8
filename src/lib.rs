@@ -209,6 +209,107 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
 
     Ok(())
 }
+pub fn run_utf8_validation_2<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE: usize>(
+    bytes1: &[u8],
+    bytes2: &[u8],
+) -> Result<(), Utf8Error> {
+    // // Some sane main loop chunk size.
+    // // This should also be small enough to fully unroll the inner loop on DFA path.
+    // const MAIN_CHUNK_SIZE: usize = 16;
+
+    // // Chunk size of bulk ASCII skip path. Must be multiple or main chunk size.
+    // const ASCII_CHUNK_SIZE: usize = 32;
+    const { assert!(ASCII_CHUNK_SIZE % MAIN_CHUNK_SIZE == 0) };
+
+    let mut st1 = ST_ACCEPT;
+    let mut i1 = 0usize;
+    let mut st2 = ST_ACCEPT;
+    let mut i2 = 0usize;
+
+    loop {
+        // Fast path: if the current state is ACCEPT, we can skip to the next non-ASCII chunk.
+        if st1 == ST_ACCEPT {
+            let rest = unsafe { bytes1.get_unchecked(i1..) };
+            let mut ascii_chunks = rest.array_chunks::<ASCII_CHUNK_SIZE>();
+            let ascii_rest_chunk_cnt = ascii_chunks.len();
+            let pos = ascii_chunks
+                .position(|chunk| {
+                    // NB. Always traverse the whole chunk to enable vectorization, instead of `.any()`.
+                    // LLVM will be fear of memory traps and fallback if loop has short-circuit.
+                    #[expect(clippy::unnecessary_fold)]
+                    let has_non_ascii = chunk.iter().fold(false, |acc, &b| acc || (b >= 0x80));
+                    has_non_ascii
+                })
+                .unwrap_or(ascii_rest_chunk_cnt);
+            i1 += pos * ASCII_CHUNK_SIZE;
+            // if i1 + MAIN_CHUNK_SIZE > bytes1.len() {
+            //     break;
+            // }
+        }
+
+        if st2 == ST_ACCEPT {
+            let rest = unsafe { bytes2.get_unchecked(i2..) };
+            let mut ascii_chunks = rest.array_chunks::<ASCII_CHUNK_SIZE>();
+            let ascii_rest_chunk_cnt = ascii_chunks.len();
+            let pos = ascii_chunks
+                .position(|chunk| {
+                    // NB. Always traverse the whole chunk to enable vectorization, instead of `.any()`.
+                    // LLVM will be fear of memory traps and fallback if loop has short-circuit.
+                    #[expect(clippy::unnecessary_fold)]
+                    let has_non_ascii = chunk.iter().fold(false, |acc, &b| acc || (b >= 0x80));
+                    has_non_ascii
+                })
+                .unwrap_or(ascii_rest_chunk_cnt);
+            i2 += pos * ASCII_CHUNK_SIZE;
+            // if i1 + MAIN_CHUNK_SIZE > bytes1.len() {
+            //     break;
+            // }
+        }
+
+        if i1 + MAIN_CHUNK_SIZE <= bytes1.len() && i2 + MAIN_CHUNK_SIZE <= bytes1.len() {
+            let mut new_st1 = st1;
+            let mut new_st2 = st2;
+            let chunk1 = unsafe { &*bytes1.as_ptr().add(i1).cast::<[u8; MAIN_CHUNK_SIZE]>() };
+            let chunk2 = unsafe { &*bytes2.as_ptr().add(i2).cast::<[u8; MAIN_CHUNK_SIZE]>() };
+            for (&b1, &b2) in chunk1.iter().zip(chunk2) {
+                new_st1 = DFA_TRANS[b1 as usize].wrapping_shr(new_st1 as _);
+                new_st2 = DFA_TRANS[b2 as usize].wrapping_shr(new_st2 as _);
+            }
+            if unlikely(new_st1 & STATE_MASK == ST_ERROR || new_st2 & STATE_MASK == ST_ERROR) {
+                return run_with_error_handling(&mut st1, i1, chunk1)
+                    .and(run_with_error_handling(&mut st2, i2, chunk2));
+            }
+
+            st1 = new_st1;
+            st2 = new_st2;
+            i1 += MAIN_CHUNK_SIZE;
+            i2 += MAIN_CHUNK_SIZE;
+        } else {
+            break;
+        }
+    }
+
+    let tail_chunk1 = unsafe { bytes1.get_unchecked(i1..) };
+    run_with_error_handling(&mut st1, i1, tail_chunk1)?;
+    let tail_chunk2 = unsafe { bytes2.get_unchecked(i2..) };
+    run_with_error_handling(&mut st2, i2, tail_chunk2)?;
+
+    if unlikely(st1 & STATE_MASK != ST_ACCEPT) {
+        return Err(Utf8Error {
+            valid_up_to: bytes1.len() - eaten_len_before_state(st1),
+            error_len: None,
+        });
+    }
+
+    if unlikely(st2 & STATE_MASK != ST_ACCEPT) {
+        return Err(Utf8Error {
+            valid_up_to: bytes2.len() - eaten_len_before_state(st2),
+            error_len: None,
+        });
+    }
+
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
