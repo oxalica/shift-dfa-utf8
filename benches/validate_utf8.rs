@@ -46,9 +46,6 @@ fn bench_throughput(c: &mut Criterion) {
                 })
                 .bench_function("shift-dfa-m16-a32", |b| {
                     b.iter(|| run_utf8_validation::<16, 32>(black_box(buf)).unwrap())
-                })
-                .bench_function("shift-dfa-2-m16-a16", |b| {
-                    b.iter(|| run_utf8_validation_2::<16, 16>(black_box(buf), black_box(buf2)).unwrap())
                 });
             group.finish();
             let mut group = c.benchmark_group(format!("validate-utf8-2-{lang}-{label}"));
@@ -57,16 +54,16 @@ fn bench_throughput(c: &mut Criterion) {
                 .bench_function("std", |b| {
                     b.iter(|| std::str::from_utf8(black_box(buf)).and_then(|_| std::str::from_utf8(buf2)).is_ok())
                 })
-                .bench_function("shift-dfa-2-m8-a8", |b| {
+                .bench_function("shift-dfa-m8-a8", |b| {
                     b.iter(|| run_utf8_validation_2::<8, 8>(black_box(buf), black_box(buf2)).unwrap())
                 })
-                .bench_function("shift-dfa-2-m8-a16", |b| {
+                .bench_function("shift-dfa-m8-a16", |b| {
                     b.iter(|| run_utf8_validation_2::<8, 16>(black_box(buf), black_box(buf2)).unwrap())
                 })
-                .bench_function("shift-dfa-2-m16-a16", |b| {
+                .bench_function("shift-dfa-m16-a16", |b| {
                     b.iter(|| run_utf8_validation_2::<16, 16>(black_box(buf), black_box(buf2)).unwrap())
                 })
-                .bench_function("shift-dfa-2-m16-a32", |b| {
+                .bench_function("shift-dfa-m16-a32", |b| {
                     b.iter(|| run_utf8_validation_2::<16, 32>(black_box(buf), black_box(buf2)).unwrap())
                 });
             group.finish();
