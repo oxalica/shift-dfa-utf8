@@ -4,13 +4,16 @@
 #![expect(internal_features, reason = "TODO")]
 use std::intrinsics::unlikely;
 
+#[cfg(test)]
+mod tests;
+
 // TODO: For inspecting assembly.
 #[no_mangle]
 fn validate_utf8(bytes: &[u8]) -> Result<(), Utf8Error> {
     run_utf8_validation::<16, 16>(bytes)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Utf8Error {
     pub valid_up_to: usize,
     pub error_len: Option<u8>,
@@ -208,34 +211,4 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty() {
-        assert!(validate_utf8(&[]).is_ok());
-    }
-
-    #[test]
-    fn valid() {
-        let mut s = String::new();
-        s.push(0x00 as char);
-        s.push(0x80 as char);
-        s.push(char::from_u32(0x800).unwrap());
-        s.push(char::from_u32(0x10000).unwrap());
-        assert!(validate_utf8(s.as_bytes()).is_ok());
-    }
-
-    #[test]
-    fn truncated() {
-        // Missing head.
-        assert!(validate_utf8(&[0b1000_0000]).is_err());
-        // Missing tail in 2 bytes encoding.
-        assert!(validate_utf8(&[0b1100_0000]).is_err());
-        // Missing tail in 3 bytes encoding.
-        assert!(validate_utf8(&[0b1110_0000]).is_err());
-    }
 }
