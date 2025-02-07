@@ -1,0 +1,298 @@
+20250207, AMD Ryzen 7 5700G 3.77G
+
+throughput-en-aligned/std
+                        time:   [80.959 ns 81.309 ns 81.657 ns]
+                        thrpt:  [46.716 GiB/s 46.916 GiB/s 47.119 GiB/s]
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) high mild
+throughput-en-aligned/shift-dfa-m8-a16
+                        time:   [139.58 ns 139.60 ns 139.62 ns]
+                        thrpt:  [27.321 GiB/s 27.326 GiB/s 27.329 GiB/s]
+Found 7 outliers among 100 measurements (7.00%)
+  3 (3.00%) high mild
+  4 (4.00%) high severe
+throughput-en-aligned/shift-dfa-m8-a32
+                        time:   [100.64 ns 100.86 ns 101.11 ns]
+                        thrpt:  [37.727 GiB/s 37.820 GiB/s 37.905 GiB/s]
+Found 21 outliers among 100 measurements (21.00%)
+  3 (3.00%) low mild
+  4 (4.00%) high mild
+  14 (14.00%) high severe
+throughput-en-aligned/shift-dfa-m16-a16
+                        time:   [149.63 ns 149.79 ns 149.99 ns]
+                        thrpt:  [25.434 GiB/s 25.468 GiB/s 25.495 GiB/s]
+Found 9 outliers among 100 measurements (9.00%)
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+throughput-en-aligned/shift-dfa-m16-a32
+                        time:   [80.277 ns 80.395 ns 80.530 ns]
+                        thrpt:  [47.370 GiB/s 47.449 GiB/s 47.519 GiB/s]
+Found 13 outliers among 100 measurements (13.00%)
+  9 (9.00%) high mild
+  4 (4.00%) high severe
+
+throughput-es-aligned/std
+                        time:   [606.05 ns 607.74 ns 609.56 ns]
+                        thrpt:  [6.2581 GiB/s 6.2768 GiB/s 6.2943 GiB/s]
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) low mild
+  4 (4.00%) high mild
+throughput-es-aligned/shift-dfa-m8-a16
+                        time:   [419.76 ns 420.44 ns 421.12 ns]
+                        thrpt:  [9.0585 GiB/s 9.0732 GiB/s 9.0879 GiB/s]
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) high mild
+throughput-es-aligned/shift-dfa-m8-a32
+                        time:   [565.31 ns 566.33 ns 567.47 ns]
+                        thrpt:  [6.7223 GiB/s 6.7358 GiB/s 6.7480 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+throughput-es-aligned/shift-dfa-m16-a16
+                        time:   [414.11 ns 415.04 ns 416.04 ns]
+                        thrpt:  [9.1690 GiB/s 9.1912 GiB/s 9.2118 GiB/s]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+throughput-es-aligned/shift-dfa-m16-a32
+                        time:   [507.89 ns 508.92 ns 510.08 ns]
+                        thrpt:  [7.4786 GiB/s 7.4956 GiB/s 7.5109 GiB/s]
+Found 9 outliers among 100 measurements (9.00%)
+  9 (9.00%) high mild
+
+throughput-zh-aligned/std
+                        time:   [2.5635 µs 2.5690 µs 2.5751 µs]
+                        thrpt:  [1.4814 GiB/s 1.4849 GiB/s 1.4881 GiB/s]
+Found 9 outliers among 100 measurements (9.00%)
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+throughput-zh-aligned/shift-dfa-m8-a16
+                        time:   [1.2320 µs 1.2347 µs 1.2377 µs]
+                        thrpt:  [3.0822 GiB/s 3.0896 GiB/s 3.0963 GiB/s]
+Found 16 outliers among 100 measurements (16.00%)
+  16 (16.00%) high mild
+throughput-zh-aligned/shift-dfa-m8-a32
+                        time:   [1.2186 µs 1.2209 µs 1.2233 µs]
+                        thrpt:  [3.1184 GiB/s 3.1246 GiB/s 3.1303 GiB/s]
+Found 9 outliers among 100 measurements (9.00%)
+  2 (2.00%) high mild
+  7 (7.00%) high severe
+throughput-zh-aligned/shift-dfa-m16-a16
+                        time:   [1.1876 µs 1.1886 µs 1.1897 µs]
+                        thrpt:  [3.2063 GiB/s 3.2094 GiB/s 3.2121 GiB/s]
+Found 15 outliers among 100 measurements (15.00%)
+  13 (13.00%) high mild
+  2 (2.00%) high severe
+throughput-zh-aligned/shift-dfa-m16-a32
+                        time:   [1.1864 µs 1.1887 µs 1.1912 µs]
+                        thrpt:  [3.2024 GiB/s 3.2090 GiB/s 3.2153 GiB/s]
+Found 16 outliers among 100 measurements (16.00%)
+  16 (16.00%) high mild
+
+lattency-err-1B/std     time:   [11.624 ns 11.667 ns 11.716 ns]
+Found 19 outliers among 100 measurements (19.00%)
+  2 (2.00%) high mild
+  17 (17.00%) high severe
+lattency-err-1B/shift-dfa-m8-a16
+                        time:   [12.531 ns 12.532 ns 12.534 ns]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+lattency-err-1B/shift-dfa-m8-a32
+                        time:   [12.575 ns 12.583 ns 12.593 ns]
+Found 19 outliers among 100 measurements (19.00%)
+  4 (4.00%) high mild
+  15 (15.00%) high severe
+lattency-err-1B/shift-dfa-m16-a16
+                        time:   [12.579 ns 12.588 ns 12.600 ns]
+Found 13 outliers among 100 measurements (13.00%)
+  3 (3.00%) high mild
+  10 (10.00%) high severe
+lattency-err-1B/shift-dfa-m16-a32
+                        time:   [12.606 ns 12.611 ns 12.616 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+
+lattency-err-16B/std    time:   [15.362 ns 15.407 ns 15.455 ns]
+Found 14 outliers among 100 measurements (14.00%)
+  12 (12.00%) high mild
+  2 (2.00%) high severe
+lattency-err-16B/shift-dfa-m8-a16
+                        time:   [19.469 ns 19.514 ns 19.561 ns]
+Found 12 outliers among 100 measurements (12.00%)
+  10 (10.00%) high mild
+  2 (2.00%) high severe
+lattency-err-16B/shift-dfa-m8-a32
+                        time:   [19.180 ns 19.214 ns 19.253 ns]
+Found 6 outliers among 100 measurements (6.00%)
+  6 (6.00%) high mild
+lattency-err-16B/shift-dfa-m16-a16
+                        time:   [23.011 ns 23.053 ns 23.101 ns]
+Found 13 outliers among 100 measurements (13.00%)
+  12 (12.00%) high mild
+  1 (1.00%) high severe
+lattency-err-16B/shift-dfa-m16-a32
+                        time:   [22.745 ns 22.786 ns 22.833 ns]
+Found 15 outliers among 100 measurements (15.00%)
+  2 (2.00%) low mild
+  6 (6.00%) high mild
+  7 (7.00%) high severe
+
+lattency-err-17B/std    time:   [14.669 ns 14.752 ns 14.845 ns]
+Found 10 outliers among 100 measurements (10.00%)
+  6 (6.00%) high mild
+  4 (4.00%) high severe
+lattency-err-17B/shift-dfa-m8-a16
+                        time:   [16.962 ns 16.989 ns 17.022 ns]
+lattency-err-17B/shift-dfa-m8-a32
+                        time:   [16.659 ns 16.707 ns 16.758 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+lattency-err-17B/shift-dfa-m16-a16
+                        time:   [16.191 ns 16.221 ns 16.255 ns]
+Found 11 outliers among 100 measurements (11.00%)
+  3 (3.00%) high mild
+  8 (8.00%) high severe
+lattency-err-17B/shift-dfa-m16-a32
+                        time:   [17.585 ns 17.653 ns 17.717 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+
+lattency-err-18B/std    time:   [14.748 ns 14.819 ns 14.906 ns]
+Found 6 outliers among 100 measurements (6.00%)
+  6 (6.00%) high mild
+lattency-err-18B/shift-dfa-m8-a16
+                        time:   [18.949 ns 18.996 ns 19.048 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+lattency-err-18B/shift-dfa-m8-a32
+                        time:   [18.822 ns 18.879 ns 18.937 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
+lattency-err-18B/shift-dfa-m16-a16
+                        time:   [18.298 ns 18.352 ns 18.407 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+lattency-err-18B/shift-dfa-m16-a32
+                        time:   [20.573 ns 20.625 ns 20.672 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) low mild
+
+lattency-err-15B/std    time:   [15.492 ns 15.535 ns 15.582 ns]
+Found 7 outliers among 100 measurements (7.00%)
+  5 (5.00%) high mild
+  2 (2.00%) high severe
+lattency-err-15B/shift-dfa-m8-a16
+                        time:   [18.721 ns 18.786 ns 18.855 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+lattency-err-15B/shift-dfa-m8-a32
+                        time:   [18.658 ns 18.711 ns 18.769 ns]
+Found 7 outliers among 100 measurements (7.00%)
+  6 (6.00%) high mild
+  1 (1.00%) high severe
+lattency-err-15B/shift-dfa-m16-a16
+                        time:   [17.702 ns 17.720 ns 17.742 ns]
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+lattency-err-15B/shift-dfa-m16-a32
+                        time:   [17.784 ns 17.806 ns 17.833 ns]
+Found 14 outliers among 100 measurements (14.00%)
+  7 (7.00%) high mild
+  7 (7.00%) high severe
+
+lattency-ok-1B/std      time:   [8.2798 ns 8.2812 ns 8.2827 ns]
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  2 (2.00%) high mild
+lattency-ok-1B/shift-dfa-m8-a16
+                        time:   [3.9149 ns 3.9175 ns 3.9202 ns]
+Found 17 outliers among 100 measurements (17.00%)
+  7 (7.00%) high mild
+  10 (10.00%) high severe
+lattency-ok-1B/shift-dfa-m8-a32
+                        time:   [4.1846 ns 4.1920 ns 4.1999 ns]
+Found 15 outliers among 100 measurements (15.00%)
+  7 (7.00%) high mild
+  8 (8.00%) high severe
+lattency-ok-1B/shift-dfa-m16-a16
+                        time:   [4.1813 ns 4.1890 ns 4.1972 ns]
+Found 12 outliers among 100 measurements (12.00%)
+  9 (9.00%) high mild
+  3 (3.00%) high severe
+lattency-ok-1B/shift-dfa-m16-a32
+                        time:   [3.9010 ns 3.9066 ns 3.9125 ns]
+Found 6 outliers among 100 measurements (6.00%)
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+
+lattency-ok-16B/std     time:   [11.902 ns 11.909 ns 11.918 ns]
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) low mild
+  4 (4.00%) high mild
+lattency-ok-16B/shift-dfa-m8-a16
+                        time:   [9.0550 ns 9.0666 ns 9.0802 ns]
+Found 7 outliers among 100 measurements (7.00%)
+  4 (4.00%) high mild
+  3 (3.00%) high severe
+lattency-ok-16B/shift-dfa-m8-a32
+                        time:   [12.165 ns 12.240 ns 12.316 ns]
+Found 8 outliers among 100 measurements (8.00%)
+  2 (2.00%) low severe
+  5 (5.00%) low mild
+  1 (1.00%) high mild
+lattency-ok-16B/shift-dfa-m16-a16
+                        time:   [8.1777 ns 8.1960 ns 8.2163 ns]
+Found 16 outliers among 100 measurements (16.00%)
+  15 (15.00%) high mild
+  1 (1.00%) high severe
+lattency-ok-16B/shift-dfa-m16-a32
+                        time:   [7.8481 ns 7.8644 ns 7.8816 ns]
+Found 13 outliers among 100 measurements (13.00%)
+  12 (12.00%) high mild
+  1 (1.00%) high severe
+
+lattency-ok-17B/std     time:   [12.048 ns 12.085 ns 12.122 ns]
+Found 20 outliers among 100 measurements (20.00%)
+  10 (10.00%) high mild
+  10 (10.00%) high severe
+lattency-ok-17B/shift-dfa-m8-a16
+                        time:   [9.7127 ns 9.7351 ns 9.7600 ns]
+Found 11 outliers among 100 measurements (11.00%)
+  6 (6.00%) high mild
+  5 (5.00%) high severe
+lattency-ok-17B/shift-dfa-m8-a32
+                        time:   [11.686 ns 11.745 ns 11.805 ns]
+Found 7 outliers among 100 measurements (7.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  4 (4.00%) high mild
+lattency-ok-17B/shift-dfa-m16-a16
+                        time:   [8.7604 ns 8.7896 ns 8.8207 ns]
+lattency-ok-17B/shift-dfa-m16-a32
+                        time:   [8.6528 ns 8.6863 ns 8.7230 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+
+lattency-ok-15B/std     time:   [11.406 ns 11.415 ns 11.425 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) high mild
+  2 (2.00%) high severe
+lattency-ok-15B/shift-dfa-m8-a16
+                        time:   [9.5962 ns 9.6268 ns 9.6607 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
+lattency-ok-15B/shift-dfa-m8-a32
+                        time:   [9.5120 ns 9.5322 ns 9.5558 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+lattency-ok-15B/shift-dfa-m16-a16
+                        time:   [11.301 ns 11.320 ns 11.340 ns]
+Found 5 outliers among 100 measurements (5.00%)
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+lattency-ok-15B/shift-dfa-m16-a32
+                        time:   [11.263 ns 11.281 ns 11.300 ns]
+
+
