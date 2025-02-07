@@ -72,6 +72,12 @@ const ST_ERROR: u32 = 0 * BITS_PER_STATE as u32;
 #[allow(clippy::all)]
 const ST_ACCEPT: u32 = 1 * BITS_PER_STATE as u32;
 
+// After storing STATE_CNT * BITS_PER_STATE = 54bits on 64-bit platform, or (STATE_CNT - 5)
+// * BITS_PER_STATE = 24bits on 32-bit platform, we still have some high bits left.
+// They will never be used via state transition.
+// We merge lookup table from first byte -> UTF-8 length, to these highest bits.
+const UTF8_LEN_HIBITS: u32 = 4;
+
 static TRANS_TABLE: [u64; 256] = {
     let mut table = [0u64; 256];
     let mut b = 0;
@@ -131,6 +137,15 @@ static TRANS_TABLE: [u64; 256] = {
             bits |= to_off << off;
             j += 1;
         }
+
+        let utf8_len = match b {
+            0x00..=0x7F => 1,
+            0xC2..=0xDF => 2,
+            0xE0..=0xEF => 3,
+            0xF0..=0xF4 => 4,
+            _ => 0,
+        };
+        bits |= utf8_len << (64 - UTF8_LEN_HIBITS);
 
         table[b] = bits;
         b += 1;
@@ -282,4 +297,10 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
     }
 
     Ok(())
+}
+
+#[no_mangle]
+pub const fn utf8_char_width(b: u8) -> usize {
+    // On 32-bit platforms, optimizer is smart enough to only load and operate on the high 32-bits.
+    (TRANS_TABLE[b as usize] >> (64 - UTF8_LEN_HIBITS)) as usize
 }
