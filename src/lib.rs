@@ -1,6 +1,7 @@
 #![feature(array_chunks)]
 #![feature(slice_split_once)]
 #![feature(core_intrinsics)]
+#![feature(select_unpredictable)]
 #![expect(internal_features, reason = "TODO")]
 use std::intrinsics::unlikely;
 
@@ -20,16 +21,16 @@ pub struct Utf8Error {
 }
 
 const BITS_PER_STATE: u32 = 6;
-const STATE_MASK: u64 = (1 << BITS_PER_STATE) - 1;
+const STATE_MASK: u32 = (1 << BITS_PER_STATE) - 1;
 const STATE_CNT: usize = 10;
 #[allow(clippy::all)]
-const ST_ERROR: u64 = 0 * BITS_PER_STATE as u64;
+const ST_ERROR: u32 = 0 * BITS_PER_STATE as u32;
 #[allow(clippy::all)]
-const ST_ACCEPT: u64 = 1 * BITS_PER_STATE as u64;
+const ST_ACCEPT: u32 = 1 * BITS_PER_STATE as u32;
 // The only states that are after eating 2 bytes. All other intermediate states (other than ERROR
 // and ACCEPT) are after eating 1 byte.
-const ST_EAT_2BYTES_1: u64 = 4 * BITS_PER_STATE as u64;
-const ST_EAT_2BYTES_2: u64 = 9 * BITS_PER_STATE as u64;
+const ST_EAT_2BYTES_1: u32 = 4 * BITS_PER_STATE;
+const ST_EAT_2BYTES_2: u32 = 9 * BITS_PER_STATE;
 
 // The transition table of shift-based DFA for UTF-8 validation.
 // Ref: <https://gist.github.com/pervognsen/218ea17743e1442e59bb60d29b1aa725>
@@ -53,6 +54,11 @@ const ST_EAT_2BYTES_2: u64 = 9 * BITS_PER_STATE as u64;
 // // shrx state, qword ptr [table_addr + 8 * byte], state   # On x86-64-v3
 // state = DFA_TRANS[byte].wrapping_shr(state);
 // ```
+//
+// On platform without 64-bit shift, especially i686, we split the `u64` next-state into
+// `[u32; 2]`, and each `u32` stores 5 * BITS_PER_STATE = 30 bits. In this way, state transition
+// can be done in only 32-bit shifts and a conditional move, which is several times faster
+// (in latency) than ordinary 64-bit shift (SHRD).
 //
 // The DFA is directly derived from UTF-8 syntax from the RFC <https://tools.ietf.org/html/rfc3629>.
 // We assign S0 as ERROR and S1 as ACCEPT. DFA starts at S1.
@@ -116,21 +122,29 @@ static DFA_TRANS: [u64; 256] = {
         };
         to[9] = to[2];
 
-        let mut bits = 0;
-        let mut j = STATE_CNT;
-        while j > 0 {
-            j -= 1;
-            bits = (bits << BITS_PER_STATE) | to[j];
+        // On platforms without 64-bit shift, align states 5..10 to 32-bit boundary.
+        // See docs above for details.
+        let need_align = cfg!(feature = "shift32");
+        let mut bits = 0u64;
+        let mut j = 0;
+        while j < to.len() {
+            let to_off =
+                to[j] * BITS_PER_STATE as u64 + if need_align && to[j] >= 5 { 2 } else { 0 };
+            let off = j as u32 * BITS_PER_STATE + if need_align && j >= 5 { 2 } else { 0 };
+            bits |= to_off << off;
+            j += 1;
         }
-        table[b] = bits * BITS_PER_STATE as u64;
+
+        table[b] = bits;
         b += 1;
     }
     table
 };
+
 /// Bytes between the current state and the latest ACCEPT before.
 /// Invariant: the argument must be a valid non-ERROR state.
 #[inline]
-fn eaten_len_before_state(st: u64) -> usize {
+fn eaten_len_before_state(st: u32) -> usize {
     match st & STATE_MASK {
         ST_ACCEPT => 0,
         ST_EAT_2BYTES_1 | ST_EAT_2BYTES_2 => 2,
@@ -138,9 +152,25 @@ fn eaten_len_before_state(st: u64) -> usize {
     }
 }
 
-fn run_with_error_handling(st: &mut u64, prefix_len: usize, chunk: &[u8]) -> Result<(), Utf8Error> {
+#[cfg(not(feature = "shift32"))]
+#[inline(always)]
+fn next_state(st: u32, byte: u8) -> u32 {
+    DFA_TRANS[byte as usize].wrapping_shr(st as _) as _
+}
+
+#[cfg(feature = "shift32")]
+#[inline(always)]
+fn next_state(st: u32, byte: u8) -> u32 {
+    // SAFETY: `u64` is more aligned than `u32`, and has the same repr as `[u32; 2]`.
+    let [lo, hi] = unsafe { std::mem::transmute::<u64, [u32; 2]>(DFA_TRANS[byte as usize]) };
+    #[cfg(target_endian = "big")]
+    let (lo, hi) = (hi, lo);
+    (st & 32 == 0).select_unpredictable(lo, hi).wrapping_shr(st)
+}
+
+fn run_with_error_handling(st: &mut u32, prefix_len: usize, chunk: &[u8]) -> Result<(), Utf8Error> {
     for (i, b) in chunk.iter().enumerate() {
-        let new_st = DFA_TRANS[*b as usize].wrapping_shr(*st as u32);
+        let new_st = next_state(*st, *b);
         if unlikely(new_st & STATE_MASK == ST_ERROR) {
             return Err(Utf8Error {
                 valid_up_to: prefix_len + i - eaten_len_before_state(*st),
@@ -190,7 +220,7 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
         let mut new_st = st;
         let chunk = unsafe { &*bytes.as_ptr().add(i).cast::<[u8; MAIN_CHUNK_SIZE]>() };
         for &b in chunk {
-            new_st = DFA_TRANS[b as usize].wrapping_shr(new_st as _);
+            new_st = next_state(new_st, b);
         }
         if unlikely(new_st & STATE_MASK == ST_ERROR) {
             return run_with_error_handling(&mut st, i, chunk);
