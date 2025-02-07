@@ -4,6 +4,7 @@
 #![feature(select_unpredictable)]
 #![expect(internal_features, reason = "TODO")]
 use std::intrinsics::unlikely;
+use std::mem;
 
 #[cfg(test)]
 mod tests;
@@ -72,6 +73,9 @@ const ST_ERROR: u32 = 0 * BITS_PER_STATE as u32;
 #[allow(clippy::all)]
 const ST_ACCEPT: u32 = 1 * BITS_PER_STATE as u32;
 
+/// Platforms that does not have efficient 64-bit shift and should use 32-bit shift fallback.
+const USE_SHIFT32: bool = cfg!(feature = "shift32");
+
 // After storing STATE_CNT * BITS_PER_STATE = 54bits on 64-bit platform, or (STATE_CNT - 5)
 // * BITS_PER_STATE = 24bits on 32-bit platform, we still have some high bits left.
 // They will never be used via state transition.
@@ -127,13 +131,12 @@ static TRANS_TABLE: [u64; 256] = {
 
         // On platforms without 64-bit shift, align states 5..10 to 32-bit boundary.
         // See docs above for details.
-        let need_align = cfg!(feature = "shift32");
         let mut bits = 0u64;
         let mut j = 0;
         while j < to.len() {
             let to_off =
-                to[j] * BITS_PER_STATE as u64 + if need_align && to[j] >= 5 { 2 } else { 0 };
-            let off = j as u32 * BITS_PER_STATE + if need_align && j >= 5 { 2 } else { 0 };
+                to[j] * BITS_PER_STATE as u64 + if USE_SHIFT32 && to[j] >= 5 { 2 } else { 0 };
+            let off = j as u32 * BITS_PER_STATE + if USE_SHIFT32 && j >= 5 { 2 } else { 0 };
             bits |= to_off << off;
             j += 1;
         }
@@ -153,20 +156,17 @@ static TRANS_TABLE: [u64; 256] = {
     table
 };
 
-#[cfg(not(feature = "shift32"))]
 #[inline(always)]
 const fn next_state(st: u32, byte: u8) -> u32 {
-    TRANS_TABLE[byte as usize].wrapping_shr(st as _) as _
-}
-
-#[cfg(feature = "shift32")]
-#[inline(always)]
-const fn next_state(st: u32, byte: u8) -> u32 {
-    // SAFETY: `u64` is more aligned than `u32`, and has the same repr as `[u32; 2]`.
-    let [lo, hi] = unsafe { std::mem::transmute::<u64, [u32; 2]>(TRANS_TABLE[byte as usize]) };
-    #[cfg(target_endian = "big")]
-    let (lo, hi) = (hi, lo);
-    if st & 32 == 0 { lo } else { hi }.wrapping_shr(st)
+    if USE_SHIFT32 {
+        // SAFETY: `u64` is more aligned than `u32`, and has the same repr as `[u32; 2]`.
+        let [lo, hi] = unsafe { mem::transmute::<u64, [u32; 2]>(TRANS_TABLE[byte as usize]) };
+        #[cfg(target_endian = "big")]
+        let (lo, hi) = (hi, lo);
+        if st & 32 == 0 { lo } else { hi }.wrapping_shr(st)
+    } else {
+        TRANS_TABLE[byte as usize].wrapping_shr(st as _) as _
+    }
 }
 
 /// Check if `byte` is a valid UTF-8 first byte, assuming it must be a valid first or
