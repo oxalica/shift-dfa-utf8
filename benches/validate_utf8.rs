@@ -61,7 +61,7 @@ fn bench_startup(c: &mut Criterion) {
         b"\xC2\x8023456789abcd\xFF",
     ];
     for s in err_cases {
-        let mut group = c.benchmark_group(format!("lattency-err-{}B", s.len()));
+        let mut group = c.benchmark_group(format!("latency-err-{}B", s.len()));
         group
             .bench_function("std", |b| {
                 b.iter(|| std::str::from_utf8(black_box(s)).unwrap_err())
@@ -91,7 +91,7 @@ fn bench_startup(c: &mut Criterion) {
         b"\xC2\x8023456789abcde",
     ];
     for s in ok_cases {
-        let mut group = c.benchmark_group(format!("lattency-ok-{}B", s.len()));
+        let mut group = c.benchmark_group(format!("latency-ok-{}B", s.len()));
         group
             .bench_function("std", |b| {
                 b.iter(|| std::str::from_utf8(black_box(s)).unwrap())
