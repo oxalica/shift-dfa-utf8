@@ -23,9 +23,9 @@ pub struct Utf8Error {
 // The transition table of shift-based DFA for UTF-8 validation.
 // Ref: <https://gist.github.com/pervognsen/218ea17743e1442e59bb60d29b1aa725>
 //
-// In short, we encode DFA transitions in an array `DFA_TRANS` such that:
+// In short, we encode DFA transitions in an array `TRANS_TABLE` such that:
 // ```
-// DFA_TRANS[next_byte] =
+// TRANS_TABLE[next_byte] =
 //     (target_state1 * BITS_PER_STATE) << (source_state1 * BITS_PER_STATE) |
 //     (target_state2 * BITS_PER_STATE) << (source_state2 * BITS_PER_STATE) |
 //     ...
@@ -34,13 +34,13 @@ pub struct Utf8Error {
 // ```
 // let state = initial_state * BITS_PER_STATE;
 // for byte in .. {
-//     state = DFA_TRANS[byte] >> (state & ((1 << BITS_PER_STATE) - 1));
+//     state = TRANS_TABLE[byte] >> (state & ((1 << BITS_PER_STATE) - 1));
 // }
 // ```
 // By choosing `BITS_PER_STATE = 6` and `state: u64`, we can replace the masking by `wrapping_shr`.
 // ```
 // // shrx state, qword ptr [table_addr + 8 * byte], state   # On x86-64-v3
-// state = DFA_TRANS[byte].wrapping_shr(state);
+// state = TRANS_TABLE[byte].wrapping_shr(state);
 // ```
 //
 // On platform without 64-bit shift, especially i686, we split the `u64` next-state into
@@ -72,7 +72,7 @@ const ST_ERROR: u32 = 0 * BITS_PER_STATE as u32;
 #[allow(clippy::all)]
 const ST_ACCEPT: u32 = 1 * BITS_PER_STATE as u32;
 
-static DFA_TRANS: [u64; 256] = {
+static TRANS_TABLE: [u64; 256] = {
     let mut table = [0u64; 256];
     let mut b = 0;
     while b < 256 {
@@ -140,15 +140,15 @@ static DFA_TRANS: [u64; 256] = {
 
 #[cfg(not(feature = "shift32"))]
 #[inline(always)]
-fn next_state(st: u32, byte: u8) -> u32 {
-    DFA_TRANS[byte as usize].wrapping_shr(st as _) as _
+const fn next_state(st: u32, byte: u8) -> u32 {
+    TRANS_TABLE[byte as usize].wrapping_shr(st as _) as _
 }
 
 #[cfg(feature = "shift32")]
 #[inline(always)]
 fn next_state(st: u32, byte: u8) -> u32 {
     // SAFETY: `u64` is more aligned than `u32`, and has the same repr as `[u32; 2]`.
-    let [lo, hi] = unsafe { std::mem::transmute::<u64, [u32; 2]>(DFA_TRANS[byte as usize]) };
+    let [lo, hi] = unsafe { std::mem::transmute::<u64, [u32; 2]>(TRANS_TABLE[byte as usize]) };
     #[cfg(target_endian = "big")]
     let (lo, hi) = (hi, lo);
     (st & 32 == 0).select_unpredictable(lo, hi).wrapping_shr(st)
@@ -157,14 +157,15 @@ fn next_state(st: u32, byte: u8) -> u32 {
 /// Check if `byte` is a valid UTF-8 first byte, assuming it must be a valid first or
 /// continuation byte.
 #[inline(always)]
-fn is_first_byte_weak(byte: u8) -> bool {
+const fn is_utf8_first_byte(byte: u8) -> bool {
     byte as i8 >= 0b1100_0000u8 as i8
 }
 
 /// # Safety
 /// The caller must ensure `bytes[..i]` is a valid UTF-8 prefix and `st` is the DFA state after
 /// executing on `bytes[..i]`.
-unsafe fn resolve_error_location(st: u32, bytes: &[u8], i: usize) -> (usize, u8) {
+#[inline]
+const unsafe fn resolve_error_location(st: u32, bytes: &[u8], i: usize) -> (usize, u8) {
     // There are two cases:
     // 1. [valid UTF-8..] | *here
     //    The previous state must be ACCEPT for the case 1, and `valid_up_to = i`.
@@ -173,19 +174,24 @@ unsafe fn resolve_error_location(st: u32, bytes: &[u8], i: usize) -> (usize, u8)
     //    be in range `(i-3)..i`.
     if st & STATE_MASK == ST_ACCEPT {
         (i, 1)
-    } else if is_first_byte_weak(unsafe { *bytes.get_unchecked(i - 1) }) {
+    // SAFETY: UTF-8 first byte must exist if we are in an intermediate state.
+    // We use pointer here because `get_unchecked` is not const fn.
+    } else if is_utf8_first_byte(unsafe { bytes.as_ptr().add(i - 1).read() }) {
         (i - 1, 1)
-    } else if is_first_byte_weak(unsafe { *bytes.get_unchecked(i - 2) }) {
+    // SAFETY: Same as above.
+    } else if is_utf8_first_byte(unsafe { bytes.as_ptr().add(i - 2).read() }) {
         (i - 2, 2)
     } else {
         (i - 3, 3)
     }
 }
 
+// The simpler but slower algorithm to run DFA with error handling.
+//
 // # Safety
 // The caller must ensure `bytes[..i]` is a valid UTF-8 prefix and `st` is the DFA state after
 // executing on `bytes[..i]`.
-unsafe fn run_with_error_handling(
+const unsafe fn run_with_error_handling(
     st: &mut u32,
     bytes: &[u8],
     mut i: usize,
@@ -206,6 +212,17 @@ unsafe fn run_with_error_handling(
     Ok(())
 }
 
+pub const fn run_utf8_validation_const<
+    const MAIN_CHUNK_SIZE: usize,
+    const ASCII_CHUNK_SIZE: usize,
+>(
+    bytes: &[u8],
+) -> Result<(), Utf8Error> {
+    let mut st = ST_ACCEPT;
+    // SAFETY: Start at empty string with valid state ACCEPT.
+    unsafe { run_with_error_handling(&mut st, bytes, 0) }
+}
+
 pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE: usize>(
     bytes: &[u8],
 ) -> Result<(), Utf8Error> {
@@ -217,6 +234,7 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
     while i + MAIN_CHUNK_SIZE <= bytes.len() {
         // Fast path: if the current state is ACCEPT, we can skip to the next non-ASCII chunk.
         if st == ST_ACCEPT {
+            // SAFETY: `i` is inbound.
             let rest = unsafe { bytes.get_unchecked(i..) };
             let mut ascii_chunks = rest.array_chunks::<ASCII_CHUNK_SIZE>();
             let ascii_rest_chunk_cnt = ascii_chunks.len();
@@ -235,8 +253,9 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
             }
         }
 
-        let mut new_st = st;
+        // SAFETY: `i` and `i + MAIN_CHUNK_SIZE` are inbound by loop invariant.
         let chunk = unsafe { &*bytes.as_ptr().add(i).cast::<[u8; MAIN_CHUNK_SIZE]>() };
+        let mut new_st = st;
         for &b in chunk {
             new_st = next_state(new_st, b);
         }
@@ -254,7 +273,7 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
     unsafe { run_with_error_handling(&mut st, bytes, i)? };
 
     if unlikely(st & STATE_MASK != ST_ACCEPT) {
-        // SAFETY: `st` is the last state after executing `bytes[..i]` without encountering any error.
+        // SAFETY: Same as above.
         let (valid_up_to, _) = unsafe { resolve_error_location(st, bytes, bytes.len()) };
         return Err(Utf8Error {
             valid_up_to,
