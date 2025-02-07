@@ -20,18 +20,6 @@ pub struct Utf8Error {
     pub error_len: Option<u8>,
 }
 
-const BITS_PER_STATE: u32 = 6;
-const STATE_MASK: u32 = (1 << BITS_PER_STATE) - 1;
-const STATE_CNT: usize = 10;
-#[allow(clippy::all)]
-const ST_ERROR: u32 = 0 * BITS_PER_STATE as u32;
-#[allow(clippy::all)]
-const ST_ACCEPT: u32 = 1 * BITS_PER_STATE as u32;
-// The only states that are after eating 2 bytes. All other intermediate states (other than ERROR
-// and ACCEPT) are after eating 1 byte.
-const ST_EAT_2BYTES_1: u32 = 4 * BITS_PER_STATE;
-const ST_EAT_2BYTES_2: u32 = 9 * BITS_PER_STATE;
-
 // The transition table of shift-based DFA for UTF-8 validation.
 // Ref: <https://gist.github.com/pervognsen/218ea17743e1442e59bb60d29b1aa725>
 //
@@ -60,20 +48,30 @@ const ST_EAT_2BYTES_2: u32 = 9 * BITS_PER_STATE;
 // can be done in only 32-bit shifts and a conditional move, which is several times faster
 // (in latency) than ordinary 64-bit shift (SHRD).
 //
-// The DFA is directly derived from UTF-8 syntax from the RFC <https://tools.ietf.org/html/rfc3629>.
+// The DFA is directly derived from UTF-8 syntax from the RFC3629:
+// <https://datatracker.ietf.org/doc/html/rfc3629#section-4>.
 // We assign S0 as ERROR and S1 as ACCEPT. DFA starts at S1.
 // Syntax are annotated with DFA states in angle bracket as following:
 //
+// UTF8-char   = <S1> (UTF8-1 / UTF8-2 / UTF8-3 / UTF8-4)
 // UTF8-1      = <S1> %x00-7F
-// UTF8-2      = <S1> %xC2-DF <S2> UTF8-tail
-// UTF8-3      = <S1> %xE0 <S3> %xA0-BF <S9> UTF8-tail /
-//               <S1> (%xE1-EC / %xEE-EF) <S4> 2( UTF8-tail ) /
-//               <S1> %xED <S5> %x80-9F <S9> UTF8-tail /
-// UTF8-4      = <S1> %xF0 <S6> %x90-BF <S4> 2( UTF8-tail ) /
-//               <S1> %xF4 <S7> %x80-8F <S4> 2( UTF8-tail ) /
-//               <S1> %xF1-F3 <S8> UTF8-tail <S9> 2( UTF8-tail )
+// UTF8-2      = <S1> %xC2-DF                <S2> UTF8-tail
+// UTF8-3      = <S1> %xE0                   <S3> %xA0-BF <S2> UTF8-tail /
+//               <S1> (%xE1-EC / %xEE-EF)    <S4> 2( UTF8-tail ) /
+//               <S1> %xED                   <S5> %x80-9F <S2> UTF8-tail
+// UTF8-4      = <S1> %xF0    <S6> %x90-BF   <S4> 2( UTF8-tail ) /
+//               <S1> %xF4    <S7> %x80-8F   <S4> 2( UTF8-tail ) /
+//               <S1> %xF1-F3 <S8> UTF8-tail <S4> 2( UTF8-tail )
 //
-// UTF8-tail   = %x80-BF   // Inlined into above usages.
+// UTF8-tail   = %x80-BF   # Inlined into above usages.
+const BITS_PER_STATE: u32 = 6;
+const STATE_MASK: u32 = (1 << BITS_PER_STATE) - 1;
+const STATE_CNT: usize = 9;
+#[allow(clippy::all)]
+const ST_ERROR: u32 = 0 * BITS_PER_STATE as u32;
+#[allow(clippy::all)]
+const ST_ACCEPT: u32 = 1 * BITS_PER_STATE as u32;
+
 static DFA_TRANS: [u64; 256] = {
     let mut table = [0u64; 256];
     let mut b = 0;
@@ -97,7 +95,7 @@ static DFA_TRANS: [u64; 256] = {
             _ => 0,
         };
         to[3] = match b {
-            0xA0..=0xBF => 9,
+            0xA0..=0xBF => 2,
             _ => 0,
         };
         to[4] = match b {
@@ -105,7 +103,7 @@ static DFA_TRANS: [u64; 256] = {
             _ => 0,
         };
         to[5] = match b {
-            0x80..=0x9F => 9,
+            0x80..=0x9F => 2,
             _ => 0,
         };
         to[6] = match b {
@@ -117,10 +115,9 @@ static DFA_TRANS: [u64; 256] = {
             _ => 0,
         };
         to[8] = match b {
-            0x80..=0xBF => 9,
+            0x80..=0xBF => 4,
             _ => 0,
         };
-        to[9] = to[2];
 
         // On platforms without 64-bit shift, align states 5..10 to 32-bit boundary.
         // See docs above for details.
@@ -141,17 +138,6 @@ static DFA_TRANS: [u64; 256] = {
     table
 };
 
-/// Bytes between the current state and the latest ACCEPT before.
-/// Invariant: the argument must be a valid non-ERROR state.
-#[inline]
-fn eaten_len_before_state(st: u32) -> usize {
-    match st & STATE_MASK {
-        ST_ACCEPT => 0,
-        ST_EAT_2BYTES_1 | ST_EAT_2BYTES_2 => 2,
-        _ => 1,
-    }
-}
-
 #[cfg(not(feature = "shift32"))]
 #[inline(always)]
 fn next_state(st: u32, byte: u8) -> u32 {
@@ -168,16 +154,54 @@ fn next_state(st: u32, byte: u8) -> u32 {
     (st & 32 == 0).select_unpredictable(lo, hi).wrapping_shr(st)
 }
 
-fn run_with_error_handling(st: &mut u32, prefix_len: usize, chunk: &[u8]) -> Result<(), Utf8Error> {
-    for (i, b) in chunk.iter().enumerate() {
-        let new_st = next_state(*st, *b);
+/// Check if `byte` is a valid UTF-8 first byte, assuming it must be a valid first or
+/// continuation byte.
+#[inline(always)]
+fn is_first_byte_weak(byte: u8) -> bool {
+    byte as i8 >= 0b1100_0000u8 as i8
+}
+
+/// # Safety
+/// The caller must ensure `bytes[..i]` is a valid UTF-8 prefix and `st` is the DFA state after
+/// executing on `bytes[..i]`.
+unsafe fn resolve_error_location(st: u32, bytes: &[u8], i: usize) -> (usize, u8) {
+    // There are two cases:
+    // 1. [valid UTF-8..] | *here
+    //    The previous state must be ACCEPT for the case 1, and `valid_up_to = i`.
+    // 2. [valid UTF-8..] | valid first byte, [valid continuation byte...], *here
+    //    `valid_up_to` is at the latest non-continuation byte, which must exist and
+    //    be in range `(i-3)..i`.
+    if st & STATE_MASK == ST_ACCEPT {
+        (i, 1)
+    } else if is_first_byte_weak(unsafe { *bytes.get_unchecked(i - 1) }) {
+        (i - 1, 1)
+    } else if is_first_byte_weak(unsafe { *bytes.get_unchecked(i - 2) }) {
+        (i - 2, 2)
+    } else {
+        (i - 3, 3)
+    }
+}
+
+// # Safety
+// The caller must ensure `bytes[..i]` is a valid UTF-8 prefix and `st` is the DFA state after
+// executing on `bytes[..i]`.
+unsafe fn run_with_error_handling(
+    st: &mut u32,
+    bytes: &[u8],
+    mut i: usize,
+) -> Result<(), Utf8Error> {
+    while i < bytes.len() {
+        let new_st = next_state(*st, bytes[i]);
         if unlikely(new_st & STATE_MASK == ST_ERROR) {
+            // SAFETY: Guaranteed by the caller.
+            let (valid_up_to, error_len) = unsafe { resolve_error_location(*st, bytes, i) };
             return Err(Utf8Error {
-                valid_up_to: prefix_len + i - eaten_len_before_state(*st),
-                error_len: Some(1),
+                valid_up_to,
+                error_len: Some(error_len),
             });
         }
         *st = new_st;
+        i += 1;
     }
     Ok(())
 }
@@ -185,12 +209,6 @@ fn run_with_error_handling(st: &mut u32, prefix_len: usize, chunk: &[u8]) -> Res
 pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE: usize>(
     bytes: &[u8],
 ) -> Result<(), Utf8Error> {
-    // // Some sane main loop chunk size.
-    // // This should also be small enough to fully unroll the inner loop on DFA path.
-    // const MAIN_CHUNK_SIZE: usize = 16;
-
-    // // Chunk size of bulk ASCII skip path. Must be multiple or main chunk size.
-    // const ASCII_CHUNK_SIZE: usize = 32;
     const { assert!(ASCII_CHUNK_SIZE % MAIN_CHUNK_SIZE == 0) };
 
     let mut st = ST_ACCEPT;
@@ -223,19 +241,23 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
             new_st = next_state(new_st, b);
         }
         if unlikely(new_st & STATE_MASK == ST_ERROR) {
-            return run_with_error_handling(&mut st, i, chunk);
+            // Discard the current chunk erronous result, and reuse the trailing chunk handling to
+            // report the error location.
+            break;
         }
 
         st = new_st;
         i += MAIN_CHUNK_SIZE;
     }
 
-    let tail_chunk = unsafe { bytes.get_unchecked(i..) };
-    run_with_error_handling(&mut st, i, tail_chunk)?;
+    // SAFETY: `st` is the last state after executing `bytes[..i]` without encountering any error.
+    unsafe { run_with_error_handling(&mut st, bytes, i)? };
 
     if unlikely(st & STATE_MASK != ST_ACCEPT) {
+        // SAFETY: `st` is the last state after executing `bytes[..i]` without encountering any error.
+        let (valid_up_to, _) = unsafe { resolve_error_location(st, bytes, bytes.len()) };
         return Err(Utf8Error {
-            valid_up_to: bytes.len() - eaten_len_before_state(st),
+            valid_up_to,
             error_len: None,
         });
     }
