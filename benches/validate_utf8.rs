@@ -26,11 +26,11 @@ fn bench_throughput(c: &mut Criterion) {
             cases.push(("unaligned", &buf[first..][..LEN]));
         }
         for (label, buf) in cases {
-            let mut group = c.benchmark_group(format!("validate-utf8-{lang}-{label}"));
+            let mut group = c.benchmark_group(format!("throughput-{lang}-{label}"));
             group
                 .throughput(criterion::Throughput::Bytes(LEN as u64))
                 .bench_function("std", |b| {
-                    b.iter(|| std::str::from_utf8(black_box(buf)).is_ok())
+                    b.iter(|| std::str::from_utf8(black_box(buf)).unwrap())
                 })
                 .bench_function("shift-dfa-m8-a16", |b| {
                     b.iter(|| run_utf8_validation::<8, 16>(black_box(buf)).unwrap())
@@ -49,5 +49,68 @@ fn bench_throughput(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bench_throughput);
+fn bench_startup(c: &mut Criterion) {
+    let err_cases = [
+        // Less than one chunk.
+        &b"\xFF"[..],
+        // Inside a chunk, error on DFA path.
+        b"\xC2\x8023456789abcde\xFF",
+        b"\xC2\x8023456789abcdef\xFF",
+        b"\xC2\x8023456789abcdefg\xFF",
+        // Trailing chunk.
+        b"\xC2\x8023456789abcd\xFF",
+    ];
+    for s in err_cases {
+        let mut group = c.benchmark_group(format!("lattency-err-{}B", s.len()));
+        group
+            .bench_function("std", |b| {
+                b.iter(|| std::str::from_utf8(black_box(s)).unwrap_err())
+            })
+            .bench_function("shift-dfa-m8-a16", |b| {
+                b.iter(|| run_utf8_validation::<8, 16>(black_box(s)).unwrap_err());
+            })
+            .bench_function("shift-dfa-m8-a32", |b| {
+                b.iter(|| run_utf8_validation::<8, 32>(black_box(s)).unwrap_err());
+            })
+            .bench_function("shift-dfa-m16-a16", |b| {
+                b.iter(|| run_utf8_validation::<16, 16>(black_box(s)).unwrap_err());
+            })
+            .bench_function("shift-dfa-m16-a32", |b| {
+                b.iter(|| run_utf8_validation::<16, 32>(black_box(s)).unwrap_err());
+            });
+        group.finish();
+    }
+
+    let ok_cases = [
+        // Less than one chunk.
+        &b"1"[..],
+        // Inside a chunk, error on DFA path.
+        b"\xC2\x8023456789abcdef",
+        b"\xC2\x8023456789abcdefg",
+        // Trailing chunk.
+        b"\xC2\x8023456789abcde",
+    ];
+    for s in ok_cases {
+        let mut group = c.benchmark_group(format!("lattency-ok-{}B", s.len()));
+        group
+            .bench_function("std", |b| {
+                b.iter(|| std::str::from_utf8(black_box(s)).unwrap())
+            })
+            .bench_function("shift-dfa-m8-a16", |b| {
+                b.iter(|| run_utf8_validation::<8, 16>(black_box(s)).unwrap());
+            })
+            .bench_function("shift-dfa-m8-a32", |b| {
+                b.iter(|| run_utf8_validation::<8, 32>(black_box(s)).unwrap());
+            })
+            .bench_function("shift-dfa-m16-a16", |b| {
+                b.iter(|| run_utf8_validation::<16, 16>(black_box(s)).unwrap());
+            })
+            .bench_function("shift-dfa-m16-a32", |b| {
+                b.iter(|| run_utf8_validation::<16, 32>(black_box(s)).unwrap());
+            });
+        group.finish();
+    }
+}
+
+criterion_group!(benches, bench_throughput, bench_startup);
 criterion_main!(benches);
