@@ -2,6 +2,7 @@
 name = "shift-dfa-utf8"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [features]
 # Whether to split 64-bit shift into 32-bit shift + select.
