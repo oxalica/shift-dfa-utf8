@@ -227,15 +227,24 @@ const unsafe fn run_with_error_handling(
     Ok(())
 }
 
-pub const fn run_utf8_validation_const<
-    const MAIN_CHUNK_SIZE: usize,
-    const ASCII_CHUNK_SIZE: usize,
->(
-    bytes: &[u8],
-) -> Result<(), Utf8Error> {
+pub const fn run_utf8_validation_const(bytes: &[u8]) -> Result<(), Utf8Error> {
     let mut st = ST_ACCEPT;
     // SAFETY: Start at empty string with valid state ACCEPT.
-    unsafe { run_with_error_handling(&mut st, bytes, 0) }
+    match unsafe { run_with_error_handling(&mut st, bytes, 0) } {
+        Err(err) => Err(err),
+        Ok(()) => {
+            if st & STATE_MASK == ST_ACCEPT {
+                Ok(())
+            } else {
+                // SAFETY: `st` is the last state after execution without encountering any error.
+                let (valid_up_to, _) = unsafe { resolve_error_location(st, bytes, bytes.len()) };
+                Err(Utf8Error {
+                    valid_up_to,
+                    error_len: None,
+                })
+            }
+        }
+    }
 }
 
 pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE: usize>(
