@@ -25,7 +25,11 @@
                 "i686-unknown-linux-gnu"
                 "arm-unknown-linux-gnueabi"
               ];
+              extensions = [
+                "llvm-tools-preview"
+              ];
             })
+            pkgs.cargo-llvm-cov
           ];
         };
 
