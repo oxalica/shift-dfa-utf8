@@ -300,6 +300,90 @@ Found 6 outliers among 100 measurements (6.00%)
 latency-ok-15B/shift-dfa-m16-a32
                         time:   [10.284 ns 10.298 ns 10.313 ns]
 
+## x86_64-v3: RUSTFLAGS='-Ctarget-cpu=x86-64-v3' cargo bench --bench=validate_utf8 -- throughput
+
+throughput-en-aligned/std
+                        time:   [79.183 ns 79.377 ns 79.595 ns]
+                        thrpt:  [47.926 GiB/s 48.058 GiB/s 48.175 GiB/s]
+Found 18 outliers among 100 measurements (18.00%)
+  8 (8.00%) high mild
+  10 (10.00%) high severe
+throughput-en-aligned/shift-dfa-m8-a16
+                        time:   [139.82 ns 139.85 ns 139.87 ns]
+                        thrpt:  [27.272 GiB/s 27.278 GiB/s 27.282 GiB/s]
+Found 12 outliers among 100 measurements (12.00%)
+  3 (3.00%) high mild
+  9 (9.00%) high severe
+throughput-en-aligned/shift-dfa-m8-a32
+                        time:   [78.124 ns 78.153 ns 78.184 ns]
+                        thrpt:  [48.791 GiB/s 48.811 GiB/s 48.829 GiB/s]
+Found 10 outliers among 100 measurements (10.00%)
+  8 (8.00%) high mild
+  2 (2.00%) high severe
+throughput-en-aligned/shift-dfa-m16-a16
+                        time:   [140.07 ns 140.14 ns 140.21 ns]
+                        thrpt:  [27.207 GiB/s 27.221 GiB/s 27.235 GiB/s]
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+throughput-en-aligned/shift-dfa-m16-a32
+                        time:   [78.243 ns 78.292 ns 78.342 ns]
+                        thrpt:  [48.693 GiB/s 48.724 GiB/s 48.754 GiB/s]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high severe
+
+throughput-es-aligned/std
+                        time:   [644.30 ns 645.10 ns 645.93 ns]
+                        thrpt:  [5.9057 GiB/s 5.9133 GiB/s 5.9207 GiB/s]
+Found 6 outliers among 100 measurements (6.00%)
+  3 (3.00%) low mild
+  3 (3.00%) high mild
+throughput-es-aligned/shift-dfa-m8-a16
+                        time:   [378.22 ns 378.62 ns 379.00 ns]
+                        thrpt:  [10.065 GiB/s 10.075 GiB/s 10.086 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) low mild
+throughput-es-aligned/shift-dfa-m8-a32
+                        time:   [490.15 ns 490.92 ns 491.73 ns]
+                        thrpt:  [7.7577 GiB/s 7.7705 GiB/s 7.7826 GiB/s]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+throughput-es-aligned/shift-dfa-m16-a16
+                        time:   [383.02 ns 383.62 ns 384.24 ns]
+                        thrpt:  [9.9279 GiB/s 9.9439 GiB/s 9.9594 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+throughput-es-aligned/shift-dfa-m16-a32
+                        time:   [479.94 ns 480.73 ns 481.55 ns]
+                        thrpt:  [7.9217 GiB/s 7.9352 GiB/s 7.9483 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+
+throughput-zh-aligned/std
+                        time:   [2.7772 µs 2.7796 µs 2.7819 µs]
+                        thrpt:  [1.3712 GiB/s 1.3724 GiB/s 1.3736 GiB/s]
+throughput-zh-aligned/shift-dfa-m8-a16
+                        time:   [1.1337 µs 1.1343 µs 1.1350 µs]
+                        thrpt:  [3.3611 GiB/s 3.3631 GiB/s 3.3649 GiB/s]
+Found 5 outliers among 100 measurements (5.00%)
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+throughput-zh-aligned/shift-dfa-m8-a32
+                        time:   [1.1308 µs 1.1314 µs 1.1320 µs]
+                        thrpt:  [3.3699 GiB/s 3.3717 GiB/s 3.3735 GiB/s]
+throughput-zh-aligned/shift-dfa-m16-a16
+                        time:   [1.1231 µs 1.1237 µs 1.1243 µs]
+                        thrpt:  [3.3931 GiB/s 3.3949 GiB/s 3.3966 GiB/s]
+Found 6 outliers among 100 measurements (6.00%)
+  5 (5.00%) high mild
+  1 (1.00%) high severe
+throughput-zh-aligned/shift-dfa-m16-a32
+                        time:   [1.1231 µs 1.1236 µs 1.1242 µs]
+                        thrpt:  [3.3933 GiB/s 3.3950 GiB/s 3.3967 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
 
 ## i686: `cargo bench --bench=validate_utf8 --features=shift32 --target=i686-unknown-linux-gnu`
 
