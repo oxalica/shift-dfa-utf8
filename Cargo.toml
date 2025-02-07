@@ -22,3 +22,6 @@ harness = false
 [profile.release]
 debug = 1
 
+[workspace]
+members = ["bench-de"]
+
