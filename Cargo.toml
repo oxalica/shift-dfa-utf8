@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 # Whether to split 64-bit shift into 32-bit shift + select.
 shift32 = []
+bench-unaligned = []
 
 [dependencies]
 
