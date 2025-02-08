@@ -5,8 +5,6 @@ edition = "2021"
 license = "MIT"
 
 [features]
-# Whether to split 64-bit shift into 32-bit shift + select.
-shift32 = []
 bench-unaligned = []
 
 [dependencies]

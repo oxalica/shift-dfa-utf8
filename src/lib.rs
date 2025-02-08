@@ -4,7 +4,6 @@
 #![feature(select_unpredictable)]
 #![expect(internal_features, reason = "TODO")]
 use std::intrinsics::unlikely;
-use std::mem;
 
 #[cfg(test)]
 mod tests;
@@ -21,33 +20,32 @@ pub struct Utf8Error {
     pub error_len: Option<u8>,
 }
 
-// The transition table of shift-based DFA for UTF-8 validation.
+// The shift-based DFA algorithm for UTF-8 validation.
 // Ref: <https://gist.github.com/pervognsen/218ea17743e1442e59bb60d29b1aa725>
 //
 // In short, we encode DFA transitions in an array `TRANS_TABLE` such that:
 // ```
 // TRANS_TABLE[next_byte] =
-//     (target_state1 * BITS_PER_STATE) << (source_state1 * BITS_PER_STATE) |
-//     (target_state2 * BITS_PER_STATE) << (source_state2 * BITS_PER_STATE) |
+//     OFFSET[target_state1] << OFFSET[source_state1] |
+//     OFFSET[target_state2] << OFFSET[source_state2] |
 //     ...
 // ```
-// Thanks to pre-multiplication, we can execute the DFA with one statement per byte:
+// Where `OFFSET[]` is a compile-time map from each state to a distinct 0..32 value.
+//
+// To execute the DFA:
 // ```
-// let state = initial_state * BITS_PER_STATE;
+// let state = OFFSET[initial_state];
 // for byte in .. {
 //     state = TRANS_TABLE[byte] >> (state & ((1 << BITS_PER_STATE) - 1));
 // }
 // ```
-// By choosing `BITS_PER_STATE = 6` and `state: u64`, we can replace the masking by `wrapping_shr`.
+// By choosing `BITS_PER_STATE = 5` and `state: u32`, we can replace the masking by `wrapping_shr`
+// and it becomes free on modern ISAs, including x86, x86_64 and ARM.
+//
 // ```
 // // shrx state, qword ptr [table_addr + 8 * byte], state   # On x86-64-v3
 // state = TRANS_TABLE[byte].wrapping_shr(state);
 // ```
-//
-// On platform without 64-bit shift, especially i686, we split the `u64` next-state into
-// `[u32; 2]`, and each `u32` stores 5 * BITS_PER_STATE = 30 bits. In this way, state transition
-// can be done in only 32-bit shifts and a conditional move, which is several times faster
-// (in latency) than ordinary 64-bit shift (SHRD).
 //
 // The DFA is directly derived from UTF-8 syntax from the RFC3629:
 // <https://datatracker.ietf.org/doc/html/rfc3629#section-4>.
@@ -61,96 +59,41 @@ pub struct Utf8Error {
 //               <S1> (%xE1-EC / %xEE-EF)    <S4> 2( UTF8-tail ) /
 //               <S1> %xED                   <S5> %x80-9F <S2> UTF8-tail
 // UTF8-4      = <S1> %xF0    <S6> %x90-BF   <S4> 2( UTF8-tail ) /
-//               <S1> %xF4    <S7> %x80-8F   <S4> 2( UTF8-tail ) /
-//               <S1> %xF1-F3 <S8> UTF8-tail <S4> 2( UTF8-tail )
-//
+//               <S1> %xF1-F3 <S7> UTF8-tail <S4> 2( UTF8-tail ) /
+//               <S1> %xF4    <S8> %x80-8F   <S4> 2( UTF8-tail )
 // UTF8-tail   = %x80-BF   # Inlined into above usages.
-const BITS_PER_STATE: u32 = 6;
+//
+// You may notice that encoding 9 states with 5bits per state into 32bit seems impossible,
+// but we exploit overlapping bits to find a possible `OFFSET[]` and `TRANS_TABLE[]` solution.
+// The SAT solver to find such (minimal) solution is in `./solve_dfa.py`.
+// The solution is also appended to the end of that file and is verifiable.
+const BITS_PER_STATE: u32 = 5;
 const STATE_MASK: u32 = (1 << BITS_PER_STATE) - 1;
 const STATE_CNT: usize = 9;
-#[allow(clippy::all)]
-const ST_ERROR: u32 = 0 * BITS_PER_STATE as u32;
-#[allow(clippy::all)]
-const ST_ACCEPT: u32 = 1 * BITS_PER_STATE as u32;
+const ST_ERROR: u32 = OFFSETS[0];
+const ST_ACCEPT: u32 = OFFSETS[1];
+// See the end of `./solve_dfa.py`.
+const OFFSETS: [u32; STATE_CNT] = [0, 6, 16, 19, 1, 25, 11, 18, 24];
 
-/// Platforms that does not have efficient 64-bit shift and should use 32-bit shift fallback.
-const USE_SHIFT32: bool = cfg!(feature = "shift32");
-
-// After storing STATE_CNT * BITS_PER_STATE = 54bits on 64-bit platform, or (STATE_CNT - 5)
-// * BITS_PER_STATE = 24bits on 32-bit platform, we still have some high bits left.
-// They will never be used via state transition.
-// We merge lookup table from first byte -> UTF-8 length, to these highest bits.
-const UTF8_LEN_HIBITS: u32 = 4;
-
-static TRANS_TABLE: [u64; 256] = {
-    let mut table = [0u64; 256];
+static TRANS_TABLE: [u32; 256] = {
+    let mut table = [0u32; 256];
     let mut b = 0;
     while b < 256 {
-        // Target states indexed by starting states.
-        let mut to = [0u64; STATE_CNT];
-        to[0] = 0;
-        to[1] = match b {
-            0x00..=0x7F => 1,
-            0xC2..=0xDF => 2,
-            0xE0 => 3,
-            0xE1..=0xEC | 0xEE..=0xEF => 4,
-            0xED => 5,
-            0xF0 => 6,
-            0xF4 => 7,
-            0xF1..=0xF3 => 8,
-            _ => 0,
+        // See the end of `./solve_dfa.py`.
+        table[b] = match b as u8 {
+            0x00..=0x7F => 0x180,
+            0xC2..=0xDF => 0x400,
+            0xE0 => 0x4C0,
+            0xE1..=0xEC | 0xEE..=0xEF => 0x40,
+            0xED => 0x640,
+            0xF0 => 0x2C0,
+            0xF1..=0xF3 => 0x480,
+            0xF4 => 0x600,
+            0x80..=0x8F => 0x21060020,
+            0x90..=0x9F => 0x20060820,
+            0xA0..=0xBF => 0x860820,
+            0xC0..=0xC1 | 0xF5..=0xFF => 0x0,
         };
-        to[2] = match b {
-            0x80..=0xBF => 1,
-            _ => 0,
-        };
-        to[3] = match b {
-            0xA0..=0xBF => 2,
-            _ => 0,
-        };
-        to[4] = match b {
-            0x80..=0xBF => 2,
-            _ => 0,
-        };
-        to[5] = match b {
-            0x80..=0x9F => 2,
-            _ => 0,
-        };
-        to[6] = match b {
-            0x90..=0xBF => 4,
-            _ => 0,
-        };
-        to[7] = match b {
-            0x80..=0x8F => 4,
-            _ => 0,
-        };
-        to[8] = match b {
-            0x80..=0xBF => 4,
-            _ => 0,
-        };
-
-        // On platforms without 64-bit shift, align states 5..10 to 32-bit boundary.
-        // See docs above for details.
-        let mut bits = 0u64;
-        let mut j = 0;
-        while j < to.len() {
-            let to_off =
-                to[j] * BITS_PER_STATE as u64 + if USE_SHIFT32 && to[j] >= 5 { 2 } else { 0 };
-            let off = j as u32 * BITS_PER_STATE + if USE_SHIFT32 && j >= 5 { 2 } else { 0 };
-            bits |= to_off << off;
-            j += 1;
-        }
-
-        let utf8_len = match b {
-            0x00..=0x7F => 1,
-            0xC2..=0xDF => 2,
-            0xE0..=0xEF => 3,
-            0xF0..=0xF4 => 4,
-            _ => 0,
-        };
-        bits |= utf8_len << (64 - UTF8_LEN_HIBITS);
-
-        table[b] = bits;
         b += 1;
     }
     table
@@ -158,15 +101,7 @@ static TRANS_TABLE: [u64; 256] = {
 
 #[inline(always)]
 const fn next_state(st: u32, byte: u8) -> u32 {
-    if USE_SHIFT32 {
-        // SAFETY: `u64` is more aligned than `u32`, and has the same repr as `[u32; 2]`.
-        let [lo, hi] = unsafe { mem::transmute::<u64, [u32; 2]>(TRANS_TABLE[byte as usize]) };
-        #[cfg(target_endian = "big")]
-        let (lo, hi) = (hi, lo);
-        if st & 32 == 0 { lo } else { hi }.wrapping_shr(st)
-    } else {
-        TRANS_TABLE[byte as usize].wrapping_shr(st as _) as _
-    }
+    TRANS_TABLE[byte as usize].wrapping_shr(st)
 }
 
 /// Check if `byte` is a valid UTF-8 first byte, assuming it must be a valid first or
@@ -309,10 +244,4 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
     }
 
     Ok(())
-}
-
-#[no_mangle]
-pub const fn utf8_char_width(b: u8) -> usize {
-    // On 32-bit platforms, optimizer is smart enough to only load and operate on the high 32-bits.
-    (TRANS_TABLE[b as usize] >> (64 - UTF8_LEN_HIBITS)) as usize
 }
