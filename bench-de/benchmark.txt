@@ -54,3 +54,40 @@ cbor-de-twitter.json    time:   [1.6588 ms 1.6592 ms 1.6597 ms]
 Found 2 outliers among 100 measurements (2.00%)
   2 (2.00%) high mild
 
+20250208
+On: MacBook Pro 14-inch, Nov 2023, Apple M3, 16 GB
+rustc: 1.86.0-nightly (942db6782 2025-02-06)
+
+## aarch64-darwin: `cargo bench --bench=cbor`
+
+cbor-de-torture_cids    time:   [5.0530 ms 5.0568 ms 5.0608 ms]
+Found 6 outliers among 100 measurements (6.00%)
+  3 (3.00%) low mild
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking cbor-de-citm_catalog.json: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 7.4s, enable flat sampling, or reduce sample count to 50.
+cbor-de-citm_catalog.json
+                        time:   [1.4765 ms 1.4776 ms 1.4786 ms]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+
+cbor-de-canada.json     time:   [3.3470 ms 3.3537 ms 3.3604 ms]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) low mild
+
+cbor-de-twitter.json    time:   [730.33 µs 731.38 µs 732.57 µs]
+Found 12 outliers among 100 measurements (12.00%)
+  1 (1.00%) low severe
+  5 (5.00%) low mild
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+
+cbor-de-trivial_helloworld
+                        time:   [57.009 ns 57.175 ns 57.380 ns]
+Found 8 outliers among 100 measurements (8.00%)
+  7 (7.00%) high mild
+  1 (1.00%) high severe
