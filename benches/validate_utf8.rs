@@ -4,7 +4,7 @@ use std::io::Write;
 use criterion::{criterion_group, criterion_main, Criterion};
 use shift_dfa_utf8::run_utf8_validation;
 
-#[repr(align(64))]
+#[repr(align(4096))]
 struct Aligned<T>(T);
 
 const LEN: usize = 4 << 10;
