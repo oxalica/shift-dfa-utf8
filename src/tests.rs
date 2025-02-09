@@ -2,14 +2,11 @@ use std::fs;
 
 use crate::Utf8Error;
 
-use super::validate_utf8 as parse;
+use super::from_utf8 as parse;
 use super::*;
 
-fn cvt<T>(ret: Result<T, std::str::Utf8Error>) -> Result<(), Utf8Error> {
-    match ret {
-        Ok(_) => Ok(()),
-        Err(err) => Err(cvt_err(err)),
-    }
+fn cvt<T>(ret: Result<T, std::str::Utf8Error>) -> Result<T, Utf8Error> {
+    ret.map_err(cvt_err)
 }
 
 fn cvt_err(err: std::str::Utf8Error) -> Utf8Error {

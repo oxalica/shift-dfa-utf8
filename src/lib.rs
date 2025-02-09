@@ -2,22 +2,32 @@
 #![feature(slice_split_once)]
 #![feature(core_intrinsics)]
 #![feature(select_unpredictable)]
+#![feature(const_eval_select)]
 #![expect(internal_features, reason = "TODO")]
 use std::intrinsics::unlikely;
 
 #[cfg(test)]
 mod tests;
 
-// TODO: For inspecting assembly.
-#[no_mangle]
-fn validate_utf8(bytes: &[u8]) -> Result<(), Utf8Error> {
-    run_utf8_validation::<16, 16>(bytes)
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Utf8Error {
     pub valid_up_to: usize,
     pub error_len: Option<u8>,
+}
+
+// TODO: For inspecting assembly.
+#[no_mangle]
+pub const fn from_utf8(bytes: &[u8]) -> Result<&str, Utf8Error> {
+    let ret = std::intrinsics::const_eval_select(
+        (bytes,),
+        run_utf8_validation_const,
+        run_utf8_validation::<16, 16>,
+    );
+    match ret {
+        // SAFETY: Verified.
+        Ok(()) => Ok(unsafe { std::str::from_utf8_unchecked(bytes) }),
+        Err(err) => Err(err),
+    }
 }
 
 // The shift-based DFA algorithm for UTF-8 validation.
