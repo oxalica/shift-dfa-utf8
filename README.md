@@ -1,6 +1,6 @@
 See: <https://github.com/rust-lang/rust/pull/136693>
 
-My own benchmark result in x86\_64 is in `./benchmark.txt`.
+To eyeball some numbers, see `./result-*.txt`.
 
 Run throughput and latency benchmark for UTF-8 validation:
 
