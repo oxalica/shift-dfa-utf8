@@ -21,12 +21,12 @@ fn bench_throughput(c: &mut Criterion) {
         let first = src.char_indices().nth(1).unwrap().0;
         assert!(0 < first && first <= 4);
 
-        let mut cases = vec![("aligned", &buf[..LEN])];
-        if cfg!(feature = "bench-unaligned") {
-            cases.push(("unaligned", &buf[first..][..LEN]));
-        }
+        let cases = [
+            ("aligned", &buf[..LEN]),
+            ("unaligned", &buf[first..][..LEN]),
+        ];
         for (label, buf) in cases {
-            let mut group = c.benchmark_group(format!("throughput-{lang}-{label}"));
+            let mut group = c.benchmark_group(format!("throughput-{label}-{lang}"));
             group
                 .throughput(criterion::Throughput::Bytes(LEN as u64))
                 .bench_function("std", |b| {
@@ -53,12 +53,9 @@ fn bench_startup(c: &mut Criterion) {
     let err_cases = [
         // Less than one chunk.
         &b"\xFF"[..],
-        // Inside a chunk, error on DFA path.
-        b"\xC2\x8023456789abcde\xFF",
-        b"\xC2\x8023456789abcdef\xFF",
-        b"\xC2\x8023456789abcdefg\xFF",
-        // Trailing chunk.
-        b"\xC2\x8023456789abcd\xFF",
+        b"\xC2\x803456\xFF",
+        // Worse case.
+        b"\xC2\x803456789012345\xFF",
     ];
     for s in err_cases {
         let mut group = c.benchmark_group(format!("latency-err-{}B", s.len()));
@@ -84,11 +81,9 @@ fn bench_startup(c: &mut Criterion) {
     let ok_cases = [
         // Less than one chunk.
         &b"1"[..],
-        // Inside a chunk, error on DFA path.
-        b"\xC2\x8023456789abcdef",
-        b"\xC2\x8023456789abcdefg",
-        // Trailing chunk.
-        b"\xC2\x8023456789abcde",
+        b"\xC2\x8034567",
+        // Full chunks.
+        b"\xC2\x8034567890123456",
     ];
     for s in ok_cases {
         let mut group = c.benchmark_group(format!("latency-ok-{}B", s.len()));
