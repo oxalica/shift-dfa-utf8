@@ -35,15 +35,16 @@ TRANSITIONS = [
 ]
 
 o = Optimize()
-offsets = [BitVec(f'o{i}', 32) for i in range(STATE_CNT)]
-trans_table = [BitVec(f't{i}', 32) for i in range(len(TRANSITIONS))]
+offsets = [BitVec(f"o{i}", 32) for i in range(STATE_CNT)]
+trans_table = [BitVec(f"t{i}", 32) for i in range(len(TRANSITIONS))]
 
 # Add some guiding constraints to make solving faster.
 o.add(offsets[0] == 0)
 o.add(trans_table[-1] == 0)
 
 for i in range(len(offsets)):
-    o.add(offsets[i] < 32 - 5) # Do not over-shift. It's not necessary but makes solving faster.
+    # Do not over-shift. It's not necessary but makes solving faster.
+    o.add(offsets[i] < 32 - 5)
     for j in range(i):
         o.add(offsets[i] != offsets[j])
 for trans, (targets, _) in zip(trans_table, TRANSITIONS):
@@ -54,10 +55,10 @@ for trans, (targets, _) in zip(trans_table, TRANSITIONS):
 goal = Concat(*offsets, *trans_table)
 o.minimize(goal)
 print(o.check())
-print('Offset[]= ', [o.model()[i].as_long() for i in offsets])
-print('Transitions:')
+print("Offset[]= ", [o.model()[i].as_long() for i in offsets])
+print("Transitions:")
 for (_, label), v in zip(TRANSITIONS, [o.model()[i].as_long() for i in trans_table]):
-    print(f'{label:14} => {v:#10x}, // {v:032b}')
+    print(f"{label:14} => {v:#10x}, // {v:032b}")
 
 # Output should be deterministic:
 # sat
