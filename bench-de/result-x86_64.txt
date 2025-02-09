@@ -1,0 +1,37 @@
+On: AMD Ryzen 7 5700G 3.775G
+rustc: master-01e4f19cc8027925ffe0885a86388b700e46bfab, LLVM 19.1.7
+
+cbor-de-citm_catalog.json
+                        time:   [3.4920 ms 3.4928 ms 3.4936 ms]
+Found 5 outliers among 100 measurements (5.00%)
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+
+cbor-de-trivial_helloworld
+                        time:   [96.454 ns 96.622 ns 96.802 ns]
+
+Benchmarking cbor-de-twitter.json: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 8.4s, enable flat sampling, or reduce sample count to 50.
+cbor-de-twitter.json    time:   [1.6649 ms 1.6653 ms 1.6657 ms]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+
+rustc: pr136693-9cc648bad370cec093e6326820eff8d1c8cd644b
+
+cbor-de-trivial_helloworld
+                        time:   [99.226 ns 99.342 ns 99.460 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+
+Benchmarking cbor-de-twitter.json: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 8.4s, enable flat sampling, or reduce sample count to 50.
+cbor-de-twitter.json    time:   [1.6643 ms 1.6652 ms 1.6661 ms]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+
+cbor-de-citm_catalog.json
+                        time:   [3.5506 ms 3.5514 ms 3.5523 ms]
+Found 7 outliers among 100 measurements (7.00%)
+  4 (4.00%) high mild
+  3 (3.00%) high severe
