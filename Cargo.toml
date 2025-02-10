@@ -14,6 +14,10 @@ criterion.git = "https://github.com/oxalica/criterion.rs.git"
 name = "validate_utf8"
 harness = false
 
+[[bench]]
+name = "lossy"
+harness = false
+
 [profile.release]
 debug = 1
 

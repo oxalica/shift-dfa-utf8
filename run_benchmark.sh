@@ -32,3 +32,8 @@ echo
 echo "### Latency"
 echo
 run $BENCH_CMD --bench=validate_utf8 -- $BENCH_ARGS latency
+
+echo
+echo "### Lossy"
+echo
+run $BENCH_CMD --bench=lossy -- $BENCH_ARGS

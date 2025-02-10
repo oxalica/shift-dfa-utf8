@@ -9,10 +9,22 @@ use std::intrinsics::unlikely;
 #[cfg(test)]
 mod tests;
 
+pub mod lossy;
+
 #[derive(Debug, PartialEq)]
 pub struct Utf8Error {
     pub valid_up_to: usize,
     pub error_len: Option<u8>,
+}
+
+impl Utf8Error {
+    pub fn error_len(&self) -> Option<usize> {
+        self.error_len.map(|len| len as _)
+    }
+
+    pub fn valid_up_to(&self) -> usize {
+        self.valid_up_to
+    }
 }
 
 // TODO: For inspecting assembly.
