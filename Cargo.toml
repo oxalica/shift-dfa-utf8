@@ -7,8 +7,8 @@ license = "MIT"
 [dependencies]
 
 [dev-dependencies]
-clap = { version = "4.5.28", features = ["help"] }
-criterion = "0.5.1"
+# For stack stabilizer, see: https://github.com/bheisler/criterion.rs/pull/744
+criterion.git = "https://github.com/oxalica/criterion.rs.git"
 
 [[bench]]
 name = "validate_utf8"
