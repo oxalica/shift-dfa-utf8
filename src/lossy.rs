@@ -12,6 +12,12 @@ pub fn to_utf8_chunks<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE: usiz
     Utf8Chunks { source }
 }
 
+// For inspecting assembly.
+#[no_mangle]
+fn utf8_chunks_next<'a>(iter: &mut Utf8Chunks<'a, 8, 16>) -> Option<Utf8Chunk<'a>> {
+    iter.next()
+}
+
 #[derive(Clone)]
 pub struct Utf8Chunks<'a, const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE: usize> {
     source: &'a [u8],

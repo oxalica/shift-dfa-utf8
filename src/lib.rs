@@ -4,7 +4,6 @@
 #![feature(select_unpredictable)]
 #![feature(const_eval_select)]
 #![expect(internal_features, reason = "TODO")]
-use std::intrinsics::unlikely;
 
 #[cfg(test)]
 mod tests;
@@ -198,7 +197,7 @@ const unsafe fn run_with_error_handling(
 ) -> Result<(), Utf8Error> {
     while i < bytes.len() {
         let new_st = next_state(*st, bytes[i]);
-        if unlikely(new_st & STATE_MASK == ST_ERROR) {
+        if new_st & STATE_MASK == ST_ERROR {
             // SAFETY: Guaranteed by the caller.
             return Err(unsafe { resolve_error_location(*st, bytes, i) });
         }
@@ -226,6 +225,7 @@ pub const fn run_utf8_validation_const(bytes: &[u8]) -> Result<(), Utf8Error> {
     }
 }
 
+#[inline(always)]
 pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE: usize>(
     bytes: &[u8],
 ) -> Result<(), Utf8Error> {
@@ -268,7 +268,7 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
         for &b in chunk {
             new_st = next_state(new_st, b);
         }
-        if unlikely(new_st & STATE_MASK == ST_ERROR) {
+        if new_st & STATE_MASK == ST_ERROR {
             // SAFETY: `st` is the last state after executing `bytes[..i]` without encountering any error.
             return unsafe { run_with_error_handling(&mut st, bytes, i) };
         }
@@ -277,7 +277,7 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
         i += MAIN_CHUNK_SIZE;
     }
 
-    if unlikely(st & STATE_MASK != ST_ACCEPT) {
+    if st & STATE_MASK != ST_ACCEPT {
         // SAFETY: Same as above.
         let mut err = unsafe { resolve_error_location(st, bytes, bytes.len()) };
         err.error_len = Utf8ErrorLen::Eof;
