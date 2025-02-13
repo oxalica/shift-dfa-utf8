@@ -37,24 +37,22 @@
         let
           pkgs = import nixpkgs {
             system = "x86_64-linux";
-            # crossSystem = "i686-linux";
+            crossSystem = "i686-linux";
             overlays = [
               rust-overlay.overlays.default
             ];
           };
         in
-        pkgs.pkgsi686Linux.mkShell {
-          buildInputs = [
-            pkgs.pkgsi686Linux.gccForLibs.lib
-          ];
-
+        pkgs.mkShell {
           nativeBuildInputs = [
-            (pkgs.rust-bin.nightly."2025-02-01".minimal.override {
+            (pkgs.buildPackages.rust-bin.nightly."2025-02-01".minimal.override {
               targets = [
                 "i686-unknown-linux-gnu"
               ];
             })
           ];
+
+          env.CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER = "i686-unknown-linux-gnu-cc";
         };
     };
 }
