@@ -16,7 +16,13 @@ fn cvt_err(err: std::str::Utf8Error) -> Utf8Error {
 fn error(valid_up_to: usize, error_len: Option<u8>) -> Utf8Error {
     Utf8Error {
         valid_up_to,
-        error_len,
+        error_len: match error_len {
+            None => Utf8ErrorLen::Eof,
+            Some(1) => Utf8ErrorLen::One,
+            Some(2) => Utf8ErrorLen::Two,
+            Some(3) => Utf8ErrorLen::Three,
+            _ => unreachable!(),
+        },
     }
 }
 

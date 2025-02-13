@@ -14,12 +14,30 @@ pub mod lossy;
 #[derive(Debug, PartialEq)]
 pub struct Utf8Error {
     pub valid_up_to: usize,
-    pub error_len: Option<u8>,
+    // Use a single value instead of tagged enum `Option<u8>` to make `Result<(), Utf8Error>` fits
+    // in two machine words, so `run_utf8_validation` does not need to returns values on stack on
+    // x86(_64). Register spill is very expensive on `run_utf8_validation` and can give up to 200%
+    // latency penalty on the error path.
+    pub error_len: Utf8ErrorLen,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum Utf8ErrorLen {
+    Eof = 0,
+    One,
+    Two,
+    Three,
 }
 
 impl Utf8Error {
+    #[inline]
     pub fn error_len(&self) -> Option<usize> {
-        self.error_len.map(|len| len as _)
+        match self.error_len {
+            Utf8ErrorLen::Eof => None,
+            // See: <https://github.com/rust-lang/rust/issues/136972>
+            len => Some(unsafe { std::mem::transmute::<Utf8ErrorLen, u8>(len) } as usize),
+        }
     }
 
     pub fn valid_up_to(&self) -> usize {
@@ -142,24 +160,28 @@ const fn is_utf8_first_byte(byte: u8) -> bool {
 /// The caller must ensure `bytes[..i]` is a valid UTF-8 prefix and `st` is the DFA state after
 /// executing on `bytes[..i]`.
 #[inline]
-const unsafe fn resolve_error_location(st: u32, bytes: &[u8], i: usize) -> (usize, u8) {
+const unsafe fn resolve_error_location(st: u32, bytes: &[u8], i: usize) -> Utf8Error {
     // There are two cases:
     // 1. [valid UTF-8..] | *here
     //    The previous state must be ACCEPT for the case 1, and `valid_up_to = i`.
     // 2. [valid UTF-8..] | valid first byte, [valid continuation byte...], *here
     //    `valid_up_to` is at the latest non-continuation byte, which must exist and
     //    be in range `(i-3)..i`.
-    if st & STATE_MASK == ST_ACCEPT {
-        (i, 1)
+    let (valid_up_to, error_len) = if st & STATE_MASK == ST_ACCEPT {
+        (i, Utf8ErrorLen::One)
     // SAFETY: UTF-8 first byte must exist if we are in an intermediate state.
     // We use pointer here because `get_unchecked` is not const fn.
     } else if is_utf8_first_byte(unsafe { bytes.as_ptr().add(i - 1).read() }) {
-        (i - 1, 1)
+        (i - 1, Utf8ErrorLen::One)
     // SAFETY: Same as above.
     } else if is_utf8_first_byte(unsafe { bytes.as_ptr().add(i - 2).read() }) {
-        (i - 2, 2)
+        (i - 2, Utf8ErrorLen::Two)
     } else {
-        (i - 3, 3)
+        (i - 3, Utf8ErrorLen::Three)
+    };
+    Utf8Error {
+        valid_up_to,
+        error_len,
     }
 }
 
@@ -168,6 +190,7 @@ const unsafe fn resolve_error_location(st: u32, bytes: &[u8], i: usize) -> (usiz
 // # Safety
 // The caller must ensure `bytes[..i]` is a valid UTF-8 prefix and `st` is the DFA state after
 // executing on `bytes[..i]`.
+#[inline]
 const unsafe fn run_with_error_handling(
     st: &mut u32,
     bytes: &[u8],
@@ -177,11 +200,7 @@ const unsafe fn run_with_error_handling(
         let new_st = next_state(*st, bytes[i]);
         if unlikely(new_st & STATE_MASK == ST_ERROR) {
             // SAFETY: Guaranteed by the caller.
-            let (valid_up_to, error_len) = unsafe { resolve_error_location(*st, bytes, i) };
-            return Err(Utf8Error {
-                valid_up_to,
-                error_len: Some(error_len),
-            });
+            return Err(unsafe { resolve_error_location(*st, bytes, i) });
         }
         *st = new_st;
         i += 1;
@@ -199,11 +218,9 @@ pub const fn run_utf8_validation_const(bytes: &[u8]) -> Result<(), Utf8Error> {
                 Ok(())
             } else {
                 // SAFETY: `st` is the last state after execution without encountering any error.
-                let (valid_up_to, _) = unsafe { resolve_error_location(st, bytes, bytes.len()) };
-                Err(Utf8Error {
-                    valid_up_to,
-                    error_len: None,
-                })
+                let mut err = unsafe { resolve_error_location(st, bytes, bytes.len()) };
+                err.error_len = Utf8ErrorLen::Eof;
+                Err(err)
             }
         }
     }
@@ -262,11 +279,9 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
 
     if unlikely(st & STATE_MASK != ST_ACCEPT) {
         // SAFETY: Same as above.
-        let (valid_up_to, _) = unsafe { resolve_error_location(st, bytes, bytes.len()) };
-        return Err(Utf8Error {
-            valid_up_to,
-            error_len: None,
-        });
+        let mut err = unsafe { resolve_error_location(st, bytes, bytes.len()) };
+        err.error_len = Utf8ErrorLen::Eof;
+        return Err(err);
     }
 
     Ok(())
