@@ -16,22 +16,19 @@ cbor-de-twitter.json    time:   [1.6649 ms 1.6653 ms 1.6657 ms]
 Found 1 outliers among 100 measurements (1.00%)
   1 (1.00%) high mild
 
-rustc: pr136693-9cc648bad370cec093e6326820eff8d1c8cd644b
+rustc: pr136693-d2030aa5afdf483789ce4d09c1a6f82ea4e47287
 
 cbor-de-trivial_helloworld
-                        time:   [99.226 ns 99.342 ns 99.460 ns]
-Found 2 outliers among 100 measurements (2.00%)
-  2 (2.00%) high mild
+                        time:   [98.113 ns 98.175 ns 98.242 ns]
+Found 5 outliers among 100 measurements (5.00%)
+  5 (5.00%) high mild
 
 Benchmarking cbor-de-twitter.json: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 8.4s, enable flat sampling, or reduce sample count to 50.
-cbor-de-twitter.json    time:   [1.6643 ms 1.6652 ms 1.6661 ms]
-Found 3 outliers among 100 measurements (3.00%)
-  2 (2.00%) high mild
-  1 (1.00%) high severe
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 8.2s, enable flat sampling, or reduce sample count to 50.
+cbor-de-twitter.json    time:   [1.6422 ms 1.6433 ms 1.6443 ms]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high severe
 
 cbor-de-citm_catalog.json
-                        time:   [3.5506 ms 3.5514 ms 3.5523 ms]
-Found 7 outliers among 100 measurements (7.00%)
-  4 (4.00%) high mild
-  3 (3.00%) high severe
+                        time:   [3.5256 ms 3.5265 ms 3.5275 ms]
+Found 5 outliers among 100 measurements (5.00%)
