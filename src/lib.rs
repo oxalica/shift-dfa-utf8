@@ -90,21 +90,25 @@ pub const fn from_utf8(bytes: &[u8]) -> Result<&str, Utf8Error> {
 // state = TRANS_TABLE[byte].wrapping_shr(state);
 // ```
 //
-// The DFA is directly derived from UTF-8 syntax from the RFC3629:
-// <https://datatracker.ietf.org/doc/html/rfc3629#section-4>.
+// The DFA is directly derived from UTF-8 syntax from the RFC3629
+// <https://datatracker.ietf.org/doc/html/rfc3629#section-4>,
+// by assigning states between bytes.
 // We assign S0 as ERROR and S1 as ACCEPT. DFA starts at S1.
 // Syntax are annotated with DFA states in angle bracket as following:
 //
 // UTF8-char   = <S1> (UTF8-1 / UTF8-2 / UTF8-3 / UTF8-4)
 // UTF8-1      = <S1> %x00-7F
-// UTF8-2      = <S1> %xC2-DF                <S2> UTF8-tail
-// UTF8-3      = <S1> %xE0                   <S3> %xA0-BF <S2> UTF8-tail /
-//               <S1> (%xE1-EC / %xEE-EF)    <S4> 2( UTF8-tail ) /
-//               <S1> %xED                   <S5> %x80-9F <S2> UTF8-tail
-// UTF8-4      = <S1> %xF0    <S6> %x90-BF   <S4> 2( UTF8-tail ) /
-//               <S1> %xF1-F3 <S7> UTF8-tail <S4> 2( UTF8-tail ) /
-//               <S1> %xF4    <S8> %x80-8F   <S4> 2( UTF8-tail )
+// UTF8-2      = <S1> %xC2-DF             <S2> UTF8-tail
+// UTF8-3      = <S1> %xE0                <S3> %xA0-BF   <S2> UTF8-tail /
+//               <S1> (%xE1-EC / %xEE-EF) <S4> UTF8-tail <S2> UTF8-tail /
+//               <S1> %xED                <S5> %x80-9F   <S2> UTF8-tail
+// UTF8-4      = <S1> %xF0                <S6> %x90-BF   <S9> UTF8-tail <S2> UTF8-tail /
+//               <S1> %xF1-F3             <S7> UTF8-tail <S9> UTF8-tail <S2> UTF8-tail /
+//               <S1> %xF4                <S8> %x80-8F   <S9> UTF8-tail <S2> UTF8-tail
 // UTF8-tail   = %x80-BF   # Inlined into above usages.
+//
+// S9 and S4 are really the same state, but splited for `error_len` calculation because they have
+// different prefix lengths. See details in `resolve_error_location`.
 //
 // You may notice that encoding 9 states with 5bits per state into 32bit seems impossible,
 // but we exploit overlapping bits to find a possible `OFFSET[]` and `TRANS_TABLE[]` solution.
@@ -112,11 +116,13 @@ pub const fn from_utf8(bytes: &[u8]) -> Result<&str, Utf8Error> {
 // The solution is also appended to the end of that file and is verifiable.
 const BITS_PER_STATE: u32 = 5;
 const STATE_MASK: u32 = (1 << BITS_PER_STATE) - 1;
-const STATE_CNT: usize = 9;
+const STATE_CNT: usize = 10;
 const ST_ERROR: u32 = OFFSETS[0];
 const ST_ACCEPT: u32 = OFFSETS[1];
 // See the end of `./solve_dfa.py`.
-const OFFSETS: [u32; STATE_CNT] = [0, 6, 16, 19, 1, 25, 11, 18, 24];
+const OFFSETS: [u32; STATE_CNT] = [0, 6, 16, 19, 13, 25, 11, 18, 24, 1];
+const OFFSET_ERROR_LEN_DISCR: u32 = 25;
+const CVT_ERROR_LEN: u32 = 0x30302;
 
 // Keep it in a single page.
 #[repr(align(1024))]
@@ -129,16 +135,16 @@ static TRANS_TABLE: TransitionTable = {
         // See the end of `./solve_dfa.py`.
         table[b] = match b as u8 {
             0x00..=0x7F => 0x180,
-            0xC2..=0xDF => 0x400,
+            0xC2..=0xDF => 0x80000400,
             0xE0 => 0x4C0,
-            0xE1..=0xEC | 0xEE..=0xEF => 0x40,
+            0xE1..=0xEC | 0xEE..=0xEF => 0x340,
             0xED => 0x640,
             0xF0 => 0x2C0,
             0xF1..=0xF3 => 0x480,
             0xF4 => 0x600,
             0x80..=0x8F => 0x21060020,
             0x90..=0x9F => 0x20060820,
-            0xA0..=0xBF => 0x860820,
+            0xA0..=0xBF => 0x40860820,
             0xC0..=0xC1 | 0xF5..=0xFF => 0x0,
         };
         b += 1;
@@ -151,39 +157,22 @@ const fn next_state(st: u32, byte: u8) -> u32 {
     TRANS_TABLE.0[byte as usize].wrapping_shr(st)
 }
 
-/// Check if `byte` is a valid UTF-8 first byte, assuming it must be a valid first or
-/// continuation byte.
-#[inline(always)]
-const fn is_utf8_first_byte(byte: u8) -> bool {
-    byte as i8 >= 0b1100_0000u8 as i8
-}
-
-/// # Safety
-/// The caller must ensure `bytes[..i]` is a valid UTF-8 prefix and `st` is the DFA state after
-/// executing on `bytes[..i]`.
+// # Safety
+// `full_st` must be the last non-ERROR state after transition, without masking.
 #[inline]
-const unsafe fn resolve_error_location(st: u32, bytes: &[u8], i: usize) -> Utf8Error {
-    // There are two cases:
-    // 1. [valid UTF-8..] | *here
-    //    The previous state must be ACCEPT for the case 1, and `valid_up_to = i`.
-    // 2. [valid UTF-8..] | valid first byte, [valid continuation byte...], *here
-    //    `valid_up_to` is at the latest non-continuation byte, which must exist and
-    //    be in range `(i-3)..i`.
-    let (valid_up_to, error_len) = if st & STATE_MASK == ST_ACCEPT {
-        (i, Utf8ErrorLen::One)
-    // SAFETY: UTF-8 first byte must exist if we are in an intermediate state.
-    // We use pointer here because `get_unchecked` is not const fn.
-    } else if is_utf8_first_byte(unsafe { bytes.as_ptr().add(i - 1).read() }) {
-        (i - 1, Utf8ErrorLen::One)
-    // SAFETY: Same as above.
-    } else if is_utf8_first_byte(unsafe { bytes.as_ptr().add(i - 2).read() }) {
-        (i - 2, Utf8ErrorLen::Two)
+const unsafe fn resolve_error_location(full_st: u32, mut i: usize) -> Utf8Error {
+    let st = full_st & STATE_MASK;
+    // S2 and S9 require inspecting higher bits to decide prefix length.
+    let error_len_s2_s9 = CVT_ERROR_LEN.wrapping_shr(full_st >> OFFSET_ERROR_LEN_DISCR) as u8 & 3;
+    i += (st == ST_ACCEPT) as usize;
+    let error_len = if st == OFFSETS[2] || st == OFFSETS[9] {
+        error_len_s2_s9
     } else {
-        (i - 3, Utf8ErrorLen::Three)
+        1
     };
     Utf8Error {
-        valid_up_to,
-        error_len,
+        valid_up_to: i - error_len as usize,
+        error_len: std::mem::transmute::<u8, Utf8ErrorLen>(error_len),
     }
 }
 
@@ -203,7 +192,7 @@ const unsafe fn run_with_error_handling(
         let new_st = next_state(st, bytes[i]);
         if new_st & STATE_MASK == ST_ERROR {
             // SAFETY: Guaranteed by the caller.
-            return Err(unsafe { resolve_error_location(st, bytes, i) });
+            return Err(unsafe { resolve_error_location(st, i) });
         }
         st = new_st;
         i += 1;
@@ -218,7 +207,7 @@ pub const fn run_utf8_validation_const(bytes: &[u8]) -> Result<(), Utf8Error> {
         Ok(st) if st & STATE_MASK == ST_ACCEPT => Ok(()),
         Ok(st) => {
             // SAFETY: `st` is the last state after execution without encountering any error.
-            let mut err = unsafe { resolve_error_location(st, bytes, bytes.len()) };
+            let mut err = unsafe { resolve_error_location(st, bytes.len()) };
             err.error_len = Utf8ErrorLen::Eof;
             Err(err)
         }
@@ -279,7 +268,7 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
 
     if st & STATE_MASK != ST_ACCEPT {
         // SAFETY: Same as above.
-        let mut err = unsafe { resolve_error_location(st, bytes, bytes.len()) };
+        let mut err = unsafe { resolve_error_location(st, bytes.len()) };
         err.error_len = Utf8ErrorLen::Eof;
         return Err(err);
     }
