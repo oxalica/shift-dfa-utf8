@@ -82,7 +82,11 @@ pub const fn from_utf8(bytes: &[u8]) -> Result<&str, Utf8Error> {
 // and it becomes free on modern ISAs, including x86, x86_64 and ARM.
 //
 // ```
-// // shrx state, qword ptr [table_addr + 8 * byte], state   # On x86-64-v3
+// // On x86-64-v3: (more instructions on ordinary x86_64 but with same cycles-per-byte)
+// //   shrx state, qword ptr [TRANS_TABLE + 4 * byte], state
+// // On aarch64/ARMv8:
+// //   ldr temp, [TRANS_TABLE, byte, lsl 2]
+// //   lsr state, temp, state
 // state = TRANS_TABLE[byte].wrapping_shr(state);
 // ```
 //
@@ -118,7 +122,6 @@ const OFFSETS: [u32; STATE_CNT] = [0, 6, 16, 19, 1, 25, 11, 18, 24];
 #[repr(align(1024))]
 struct TransitionTable([u32; 256]);
 
-#[no_mangle]
 static TRANS_TABLE: TransitionTable = {
     let mut table = [0u32; 256];
     let mut b = 0;
@@ -232,32 +235,33 @@ pub fn run_utf8_validation<const MAIN_CHUNK_SIZE: usize, const ASCII_CHUNK_SIZE:
     // SAFETY: Start at initial state ACCEPT.
     let mut st = unsafe { run_with_error_handling(ST_ACCEPT, &bytes[..i], 0)? };
 
-    while i + MAIN_CHUNK_SIZE <= bytes.len() {
+    while i < bytes.len() {
         // Fast path: if the current state is ACCEPT, we can skip to the next non-ASCII chunk.
         // We also did a quick inspection on the first byte to avoid getting into this path at all
         // when handling strings with almost no ASCII, eg. Chinese scripts.
-        // SAFETY: `i` is inbound.
-        if st == ST_ACCEPT && unsafe { *bytes.get_unchecked(i) } < 0x80 {
-            // SAFETY: `i` is inbound.
+        // SAFETY: `i` is in bound.
+        if st == ST_ACCEPT && unsafe { bytes.get_unchecked(i).is_ascii() } {
+            // SAFETY: `i` is in bound.
             let rest = unsafe { bytes.get_unchecked(i..) };
             let mut ascii_chunks = rest.array_chunks::<ASCII_CHUNK_SIZE>();
             let ascii_rest_chunk_cnt = ascii_chunks.len();
             let pos = ascii_chunks
                 .position(|chunk| {
-                    // NB. Always traverse the whole chunk to enable vectorization, instead of `.any()`.
-                    // LLVM will be fear of memory traps and fallback if loop has short-circuit.
+                    // NB. Always traverse the whole chunk instead of `.all()`, to persuade LLVM to
+                    // vectorize this check.
+                    // We also do not use `<[u8]>::is_ascii` which is unnecessarily complex here.
                     #[expect(clippy::unnecessary_fold)]
-                    let has_non_ascii = chunk.iter().fold(false, |acc, &b| acc || (b >= 0x80));
-                    has_non_ascii
+                    let all_ascii = chunk.iter().fold(true, |acc, b| acc && b.is_ascii());
+                    !all_ascii
                 })
                 .unwrap_or(ascii_rest_chunk_cnt);
             i += pos * ASCII_CHUNK_SIZE;
-            if i + MAIN_CHUNK_SIZE > bytes.len() {
+            if i >= bytes.len() {
                 break;
             }
         }
 
-        // SAFETY: `i` and `i + MAIN_CHUNK_SIZE` are inbound by loop invariant.
+        // SAFETY: `i` and `i + MAIN_CHUNK_SIZE` are in bound by loop invariant.
         let chunk = unsafe { &*bytes.as_ptr().add(i).cast::<[u8; MAIN_CHUNK_SIZE]>() };
         let mut new_st = st;
         for &b in chunk {
