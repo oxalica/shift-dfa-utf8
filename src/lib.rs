@@ -35,7 +35,7 @@ impl Utf8Error {
         match self.error_len {
             Utf8ErrorLen::Eof => None,
             // See: <https://github.com/rust-lang/rust/issues/136972>
-            len => Some(unsafe { std::mem::transmute::<Utf8ErrorLen, u8>(len) } as usize),
+            len => Some(len as usize),
         }
     }
 
